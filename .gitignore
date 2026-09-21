@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+.env
+*.egg-info/
+dist/
+build/
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+
+# Django
+*.log
+db.sqlite3
+staticfiles/
+media/
+
+# Node
+node_modules/
+.next/
+out/
+npm-debug.log*
+
+# Docker
+.docker/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Data & Secrets
+data/geoip/
+backups/
+*.dump
+*.pem
+*.key
+infra/docker/nginx/ssl/
+
+coverage.xml
