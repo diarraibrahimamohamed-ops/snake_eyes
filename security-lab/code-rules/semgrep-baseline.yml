@@ -1,0 +1,21 @@
+rules:
+  - id: afw-python-eval
+    languages: [python]
+    message: Avoid eval on untrusted input.
+    severity: ERROR
+    pattern: eval(...)
+  - id: afw-python-exec
+    languages: [python]
+    message: Avoid exec on untrusted input.
+    severity: ERROR
+    pattern: exec(...)
+  - id: afw-python-os-system
+    languages: [python]
+    message: Review os.system call and command construction.
+    severity: WARNING
+    pattern: os.system(...)
+  - id: afw-js-innerhtml
+    languages: [javascript, typescript]
+    message: Review innerHTML assignment for XSS risk.
+    severity: WARNING
+    pattern: $X.innerHTML = $Y

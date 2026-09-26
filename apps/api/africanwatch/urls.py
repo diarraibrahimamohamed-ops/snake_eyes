@@ -15,6 +15,8 @@ api_v1 = [
     path("", include("africanwatch.apps.ai_engine.urls")),
     path("", include("africanwatch.apps.offensive_lab.urls")),
     path("", include("africanwatch.apps.security_lab.urls")),
+    path("", include("africanwatch.apps.intelligence.urls")),
+    path("", include("africanwatch.apps.malware_lab.urls")),
     path("dashboard/", include("africanwatch.apps.dashboard.urls")),
 ]
 

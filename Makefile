@@ -1,4 +1,4 @@
-.PHONY: help up lab ai down build logs test lint seed
+.PHONY: help up lab ai intel security down build logs test lint seed
 
 GREEN=\033[0;32m
 CYAN=\033[0;36m
@@ -10,7 +10,9 @@ help:
 	@echo ""
 	@echo "  $(GREEN)up$(RESET)              Mode LITE (8 Go RAM recommandé)"
 	@echo "  $(GREEN)lab$(RESET)             Ajouter Elastic/Kafka/monitoring"
-	@echo "  $(GREEN)ai$(RESET)              Ajouter Ollama (modèle léger)"
+	@echo "  $(GREEN)ai$(RESET)              Ajouter Ollama (modèle léger)
+  $(GREEN)intel$(RESET)           Activer le collecteur Onion/Tor (passif)
+  $(GREEN)security$(RESET)        Activer le lab malware / code"
 	@echo "  $(GREEN)down$(RESET)            Arrêter"
 	@echo "  $(GREEN)build$(RESET)           Rebuild images"
 	@echo "  $(GREEN)logs$(RESET)            Logs temps réel"
@@ -44,6 +46,12 @@ lab:
 ai:
 	docker compose --profile ai up -d
 	@echo "Installe ensuite un petit modèle : docker compose --profile ai exec ollama ollama pull qwen2.5:1.5b-instruct-q3_K_S"
+
+intel:
+	docker compose --profile intel up -d
+
+security:
+	docker compose --profile security up -d
 
 down:
 	docker compose down
@@ -127,3 +135,6 @@ security-tools:
 
 security-tool-catalog:
 	docker compose run --rm api python manage.py seed_security_tools
+
+intel-seed:
+	docker compose run --rm api python manage.py seed_intelligence_sources

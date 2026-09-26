@@ -20,7 +20,7 @@ class SecurityReviewViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         user = self.request.user
         org = getattr(user, "organization", None)
-        if org is None and not user.is_superuser:
+        if org is None:
             raise PermissionDenied("Utilisateur sans organisation")
         asset = serializer.validated_data.get("asset")
         if asset and not user.is_superuser and asset.organization_id != org.id:

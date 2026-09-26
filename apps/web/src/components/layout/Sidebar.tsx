@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
-import { LayoutDashboard, Database, Globe, AlertTriangle, Radio, Bug, Settings, LogOut, Shield, User, Crosshair } from "lucide-react";
+import { LayoutDashboard, Database, Globe, AlertTriangle, Radio, Bug, Settings, LogOut, Shield, User, Crosshair, Radar, FileSearch } from "lucide-react";
 import { useAuthStore } from "@/lib/stores/auth";
 import { cn } from "@/lib/utils";
 
@@ -15,6 +15,8 @@ const NAV = [
   {href:"/vulns",icon:Bug,label:"Vulnérabilités"},
   {href:"/offensive-lab",icon:Crosshair,label:"Offensive Lab"},
   {href:"/security-lab",icon:Shield,label:"Security Lab"},
+  {href:"/intelligence",icon:Radar,label:"Intelligence Center"},
+  {href:"/malware-lab",icon:FileSearch,label:"Malware Lab"},
   {href:"/settings",icon:Settings,label:"Paramètres"},
 ];
 

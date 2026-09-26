@@ -113,6 +113,10 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - ./security-lab/quarantine:/security-lab/quarantine:rw
+      - ./security-lab/jobs:/security-lab/jobs:rw
+      - ./security-lab/results:/security-lab/results:rw
     networks:
       - aw_net
 
@@ -143,9 +147,72 @@ services:
       - "./security-lab/containers:/security-lab/containers:ro"
       - "./security-lab/credentials:/security-lab/credentials:ro"
       - "./security-lab/wordlists:/security-lab/wordlists:ro"
+      - "./security-lab/quarantine:/security-lab/quarantine:rw"
+      - "./security-lab/jobs:/security-lab/jobs:rw"
+      - "./security-lab/results:/security-lab/results:rw"
+      - "./security-lab/yara:/security-lab/yara:ro"
     depends_on:
       - api
       - redis
+    networks:
+      - aw_net
+
+  clamav_updater:
+    build:
+      context: .
+      dockerfile: infra/security-scanner/Dockerfile
+    container_name: aw_clamav_updater
+    restart: unless-stopped
+    profiles: ["security"]
+    command: ["freshclam", "--foreground=true", "--checks=12"]
+    user: "0:0"
+    mem_limit: 256m
+    cpus: "0.25"
+    volumes:
+      - clamav_db:/var/lib/clamav
+    networks:
+      - aw_net
+
+  malware_scanner:
+    build:
+      context: .
+      dockerfile: infra/security-scanner/Dockerfile
+    container_name: aw_malware_scanner
+    restart: unless-stopped
+    profiles: ["security"]
+    network_mode: "none"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    mem_limit: 768m
+    cpus: "0.75"
+    tmpfs:
+      - /tmp:size=128m,noexec,nosuid,nodev
+    volumes:
+      - ./security-lab/quarantine:/security-lab/quarantine:ro
+      - ./security-lab/jobs:/security-lab/jobs:rw
+      - ./security-lab/results:/security-lab/results:rw
+      - ./security-lab/yara:/security-lab/yara:ro
+      - clamav_db:/var/lib/clamav:ro
+
+  tor:
+    image: svengo/tor:0.4.9.12
+    container_name: aw_tor
+    restart: unless-stopped
+    profiles: ["intel"]
+    environment:
+      SOCKS_PORT: "9050"
+      SOCKS_POLICY: "accept 172.28.0.0/16"
+    ports:
+      - "127.0.0.1:19050:9050"
+    mem_limit: 256m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     networks:
       - aw_net
 
@@ -279,7 +346,11 @@ volumes:
   prometheus_data:
   grafana_data:
   ollama_data:
+  clamav_db:
 
 networks:
   aw_net:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16

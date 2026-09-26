@@ -30,6 +30,21 @@ CREDENTIAL_LAB_ROOT = env("CREDENTIAL_LAB_ROOT", default="/security-lab/credenti
 CREDENTIAL_WORDLIST_ROOT = env("CREDENTIAL_WORDLIST_ROOT", default="/security-lab/wordlists")
 ALLOW_LOCAL_CREDENTIAL_AUDIT = env.bool("ALLOW_LOCAL_CREDENTIAL_AUDIT", default=False)
 SECURITY_LAB_MAX_RUNTIME = env.int("SECURITY_LAB_MAX_RUNTIME", default=300)
+ONION_ALLOWED_HOSTS = [x.strip().lower() for x in env.list("ONION_ALLOWED_HOSTS", default=[]) if x.strip()]
+TOR_SOCKS_PROXY = env("TOR_SOCKS_PROXY", default="socks5://tor:9050")
+TOR_ENABLED = env.bool("TOR_ENABLED", default=False)
+TOR_PASSIVE_ONLY = env.bool("TOR_PASSIVE_ONLY", default=True)
+MALWARE_MAX_UPLOAD_BYTES = env.int("MALWARE_MAX_UPLOAD_BYTES", default=25 * 1024 * 1024)
+MALWARE_QUARANTINE_ROOT = env("MALWARE_QUARANTINE_ROOT", default="/security-lab/quarantine")
+MALWARE_SCANNER_DAEMON_ENABLED = env.bool("MALWARE_SCANNER_DAEMON_ENABLED", default=True)
+MALWARE_SCAN_JOBS_ROOT = env("MALWARE_SCAN_JOBS_ROOT", default="/security-lab/jobs")
+MALWARE_SCAN_RESULTS_ROOT = env("MALWARE_SCAN_RESULTS_ROOT", default="/security-lab/results")
+MALWARE_YARA_RULES = env("MALWARE_YARA_RULES", default="/security-lab/yara/africanwatch.yar")
+INTEL_MAX_SOURCES_PER_RUN = env.int("INTEL_MAX_SOURCES_PER_RUN", default=12)
+INTEL_MAX_OBSERVATIONS_PER_RUN = env.int("INTEL_MAX_OBSERVATIONS_PER_RUN", default=100)
+INTEL_ENABLE_GDELT = env.bool("INTEL_ENABLE_GDELT", default=True)
+OSINT_SPACY_ENABLED = env.bool("OSINT_SPACY_ENABLED", default=False)
+OSINT_EXTERNAL_TRANSLATION_ENABLED = env.bool("OSINT_EXTERNAL_TRANSLATION_ENABLED", default=False)
 
 DJANGO_APPS = [
     "django.contrib.admin","django.contrib.auth","django.contrib.contenttypes",
@@ -45,6 +60,7 @@ LOCAL_APPS = [
     "africanwatch.apps.osint","africanwatch.apps.soc","africanwatch.apps.vulns",
     "africanwatch.apps.ai_engine","africanwatch.apps.dashboard",
     "africanwatch.apps.offensive_lab", "africanwatch.apps.security_lab",
+    "africanwatch.apps.intelligence", "africanwatch.apps.malware_lab",
 ]
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
 

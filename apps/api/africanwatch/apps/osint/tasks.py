@@ -34,10 +34,12 @@ def collect_source(self, source_id: str):
 
 
 @shared_task(queue="osint")
-def run_all_collections():
+def run_all_collections(organization_id=None):
     from africanwatch.apps.osint.models import OSINTSource
     from datetime import timedelta
-    sources = OSINTSource.objects.filter(is_active=True)
+    sources = OSINTSource.objects.filter(is_active=True, organization__isnull=False)
+    if organization_id:
+        sources = sources.filter(organization_id=organization_id)
     scheduled = 0
     for source in sources:
         if source.last_crawled_at:
@@ -120,7 +122,7 @@ def _save_event(source, content, url="", author="", published_at=None, raw_data=
     score = _score(content)
     translated = _translate(content, lang)
     event = OSINTEvent.objects.create(
-        source=source, content=content[:5000], content_translated=translated[:5000],
+        source=source, organization=source.organization, content=content[:5000], content_translated=translated[:5000],
         language_detected=lang, url=url, author=author,
         published_at=published_at or timezone.now(),
         threat_relevance_score=score, is_threat_relevant=score >= 0.3,
@@ -219,9 +221,9 @@ def _collect_github(source) -> int:
     created = 0
     for kw in keywords[:3]:
         try:
-            resp = httpx.get("https://api.github.com/search/code",
-                            params={"q": kw, "sort": "indexed", "per_page": 5},
-                            headers={"Accept": "application/vnd.github.v3+json"}, timeout=10)
+            from africanwatch.security.outbound import safe_get
+            query_url = "https://api.github.com/search/code?q=" + __import__("urllib.parse", fromlist=["quote"]).quote(kw) + "&sort=indexed&per_page=5"
+            resp = safe_get(query_url, headers={"Accept": "application/vnd.github.v3+json"}, timeout=10, max_bytes=300_000)
             if resp.status_code != 200:
                 continue
             for item in resp.json().get("items", []):
@@ -255,6 +257,9 @@ def _extract_iocs(text: str) -> list:
 
 
 def _extract_entities(text: str) -> dict:
+    from django.conf import settings
+    if not getattr(settings, "OSINT_SPACY_ENABLED", False):
+        return {"LOC": [], "ORG": [], "PER": []}
     try:
         import spacy
         nlp = spacy.load("fr_core_news_sm")

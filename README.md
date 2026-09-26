@@ -71,8 +71,10 @@ africanwatch/
 | 🌐 **OSINT Engine** | News africaines, Telegram, RSS, GitHub, NLP multilingue |
 | 🔴 **SOC Center** | Alertes WebSocket, Incidents, Règles Sigma/YARA |
 | 🔍 **Vulnerability Mgmt** | Scan Nuclei/Nmap, CVSS, Remédiation |
-| 🤖 **AI Engine** | Extraction IOCs, Résumés LLM local, Prédiction |
+| 🤖 **AI Engine** | Extraction IOCs, Résumés LLM local, Signaux de tendance |
 | 🌍 **African Context** | Score menace africain, BGP, Mobile Money, langues locales |
+| 🛰️ **Intelligence Center v6** | Reconnaissance passive, RDAP/DNS/CT, GDELT, sources Web/Social publiques, Onion allowlisté, provenance et corrélation |
+| 🧪 **Malware & Code Lab v6** | Quarantaine, SHA-256, ClamAV, YARA, SAST, limites anti-archive-bomb, scanner isolé |
 
 ---
 
@@ -83,6 +85,21 @@ Le projet démarre désormais en **mode LITE** pour une machine de 8 Go de RAM :
 **Offensive Lab** ajoute une couche d’évaluation active sous contrôle : un opérateur crée un engagement, indique une référence d’autorisation, associe des actifs existants, active une fenêtre temporelle et lance uniquement des profils de reconnaissance/configuration prédéfinis. Les commandes sont construites côté serveur ; il n’existe pas d’exécution shell arbitraire depuis l’API. Les cibles privées/réservées restent bloquées sauf `LAB_MODE=True` dans un environnement isolé.
 
 Profils disponibles : `dns_recon`, `dns_posture`, `web_recon`, `web_posture`, `tls_audit`, `port_recon`, `exposure_audit`, `adversary_recon`, `exposure_chain`, `nuclei_safe`, `combined_recon`. Le Lab ajoute un préflight d’engagement, une analyse de chaîne d’exposition, une estimation de visibilité SOC et une comparaison avec l’assessment précédent. Chaque job produit un condensat SHA-256 de son résultat et participe à une chaîne d’événements vérifiable.
+
+
+## 🛰️ Intelligence Center v6
+
+Le nouveau centre de renseignement sépare clairement la collecte passive de l'assessment actif. Il enrichit les domaines et IP par DNS/RDAP/Certificate Transparency, collecte des contenus publics, accepte des sources Web/Social publiques sous forme d'URL modèle `{target}`, et fournit une voie Onion via Tor avec allowlist. Chaque observation est hashée et enrichie d'une provenance, d'une note de fiabilité, d'une confiance, d'une actionnabilité, d'une corroboration et d'un TLP.
+
+Les contenus multilingues sont triés en français, anglais, arabe, haoussa, fulfulde et bambara. Les signaux d'influence nuisible sont traités comme des indicateurs de triage et ne servent pas à profiler ou persuader politiquement des personnes.
+
+## 🧪 Malware & Code Lab v6
+
+Les fichiers entrants sont placés dans une quarantaine propre au tenant. Le moteur calcule le SHA-256, refuse les fichiers trop gros ou les archives potentiellement explosives, puis lance les moteurs disponibles : ClamAV, YARA et SAST. Les fichiers soumis ne sont jamais exécutés par le système. Le scanner optionnel tourne sans réseau, sans privilèges et en lecture seule sur la quarantaine.
+
+## 🕵️ Collecte discrète — limite technique
+
+La confidentialité de la collecte est une propriété différente de l'effacement de traces. AfricaWatch n'essaie pas de supprimer ou contourner les journaux d'une infrastructure distante. Tor est limité à la collecte passive de sources Onion autorisées ; les scans actifs restent dans l'Offensive Lab avec scope, autorisation, audit et kill-switch.
 
 ## 🛠️ Commandes
 

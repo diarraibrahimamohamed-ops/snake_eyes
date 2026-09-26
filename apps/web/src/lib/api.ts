@@ -98,6 +98,26 @@ class APIClient {
     summarize: (incident_id: string) => this.http.post("/ai/summarize-incident/", { incident_id }),
     prediction: () => this.http.get("/ai/threat-prediction/"),
   };
+  intelligence = {
+    passiveLookup: (kind: string, value: string) => this.http.get("/passive-lookup/", { params: { kind, value } }),
+    forecasts: (p?: any) => this.http.get("/threat-forecasts/", { params: p }),
+    refreshForecasts: () => this.http.post("/threat-forecasts/refresh/"),
+    targets: (p?: any) => this.http.get("/collection-targets/", { params: p }),
+    sources: (p?: any) => this.http.get("/collection-sources/", { params: p }),
+    runs: (p?: any) => this.http.get("/collection-runs/", { params: p }),
+    createTarget: (d: any) => this.http.post("/collection-targets/", d),
+    createSource: (d: any) => this.http.post("/collection-sources/", d),
+    createRun: (d: any) => this.http.post("/collection-runs/", d),
+    run: (id: string) => this.http.post(`/collection-runs/${id}/run/`),
+    observations: (p?: any) => this.http.get("/intelligence-observations/", { params: p }),
+    campaignRadar: () => this.http.get("/campaign-radar/"),
+    exportRunStix: (id: string) => this.http.get(`/collection-runs/${id}/export-stix/`),
+  };
+  malware = {
+    scans: (p?: any) => this.http.get("/artifact-scans/", { params: p }),
+    get: (id: string) => this.http.get(`/artifact-scans/${id}/`),
+    submit: (file: File) => { const form = new FormData(); form.append("file", file); return this.http.post("/artifact-scans/submit/", form, { headers: { "Content-Type": "multipart/form-data" }, timeout: 120000 }); },
+  };
   security = {
     reviews: (p?: any) => this.http.get("/security-reviews/", { params: p }),
     createReview: (d: any) => this.http.post("/security-reviews/", d),

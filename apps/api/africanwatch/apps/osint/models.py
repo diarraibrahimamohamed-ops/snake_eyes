@@ -1,7 +1,7 @@
 """AfricaWatch — OSINT Models"""
 import uuid
 from django.db import models
-from africanwatch.apps.organizations.models import TimeStampedModel
+from africanwatch.apps.organizations.models import TimeStampedModel, Organization
 
 
 class OSINTSource(TimeStampedModel):
@@ -17,6 +17,7 @@ class OSINTSource(TimeStampedModel):
         CERT = "cert","CERT/Advisory"
         GOVERNMENT = "government","Site gouvernemental"
 
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, null=True, blank=True, related_name="osint_sources")
     name = models.CharField(max_length=255)
     source_type = models.CharField(max_length=20, choices=SourceType.choices)
     url = models.URLField(blank=True)
@@ -46,6 +47,7 @@ class OSINTEvent(TimeStampedModel):
         ALARMING = "alarming","Alarmant"
 
     source = models.ForeignKey(OSINTSource, on_delete=models.CASCADE, related_name="events")
+    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, null=True, blank=True, related_name="osint_events")
     content = models.TextField()
     content_translated = models.TextField(blank=True)
     language_detected = models.CharField(max_length=10, blank=True)

@@ -57,33 +57,35 @@ def summarize_incident(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def threat_prediction(request):
-    """Prédit les menaces probables pour les prochaines 24h."""
-    from africanwatch.apps.threat_intel.models import IOC
+    """Produit des signaux de tendance multi-source; jamais une certitude d'attaque."""
     from django.db.models import Count
     from django.utils import timezone
     from datetime import timedelta
-
+    from collections import Counter
+    from africanwatch.apps.threat_intel.models import IOC
+    from africanwatch.apps.intelligence.models import ThreatForecast, IntelligenceObservation
+    org_id = getattr(getattr(request, "user", None), "organization_id", None)
     last_7d = timezone.now() - timedelta(days=7)
-    trending = list(
-        IOC.objects.filter(created_at__gte=last_7d, is_active=True)
-        .exclude(malware_families=[])
-        .values("malware_families")
-        .annotate(count=Count("id"))
-        .order_by("-count")[:5]
-    )
-    african_iocs = IOC.objects.filter(is_african_threat=True, is_active=True,
-                                       created_at__gte=last_7d).count()
-    score = min(100, african_iocs * 2)
-    level = "critical" if score >= 75 else "elevated" if score >= 40 else "stable"
-
+    base = IOC.objects.filter(created_at__gte=last_7d, is_active=True)
+    if org_id:
+        base = base.filter(source_organization_id=org_id)
+    trending = list(base.exclude(malware_families=[]).values("malware_families").annotate(count=Count("id")).order_by("-count")[:8])
+    obs_qs = IntelligenceObservation.objects.filter(organization_id=org_id, retrieved_at__gte=last_7d) if org_id else IntelligenceObservation.objects.none()
+    signals = Counter()
+    for row in obs_qs.only("classification"):
+        for item in row.classification.get("categories", []):
+            name=item.get("name")
+            if name: signals[name]+=int(item.get("hits",0) or 0)
+    forecasts = ThreatForecast.objects.filter(organization_id=org_id).order_by("-generated_at")[:8] if org_id else ThreatForecast.objects.none()
+    top_forecasts=[{"signal_type":f.signal_type,"level":f.level,"score":f.score,"confidence":f.confidence,"horizon_hours":f.horizon_hours,"model":f.model} for f in forecasts]
+    observation_count=obs_qs.count()
     return Response({
         "trending_threats": trending,
-        "african_iocs_7d": african_iocs,
-        "predicted_risk_level": level,
-        "predicted_score": score,
-        "method": "heuristic_indicator",
-        "note": "Indicateur heuristique basé sur les IOC récents; ce n'est pas un modèle prédictif validé.",
-        "recommendations": _get_recommendations(level),
+        "intelligence_signals": signals.most_common(8),
+        "observation_count_7d": observation_count,
+        "forecast_signals": top_forecasts,
+        "method": "deterministic-multi-source-trend-v2",
+        "note": "Signaux de surveillance fondés sur exposition, fraîcheur, corrélation et renseignements disponibles. Ils ne constituent ni une attribution ni une prédiction certaine d'attaque.",
         "computed_at": timezone.now().isoformat(),
     })
 
