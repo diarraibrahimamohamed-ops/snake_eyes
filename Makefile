@@ -10,9 +10,9 @@ help:
 	@echo ""
 	@echo "  $(GREEN)up$(RESET)              Mode LITE (8 Go RAM recommandé)"
 	@echo "  $(GREEN)lab$(RESET)             Ajouter Elastic/Kafka/monitoring"
-	@echo "  $(GREEN)ai$(RESET)              Ajouter Ollama (modèle léger)
-  $(GREEN)intel$(RESET)           Activer le collecteur Onion/Tor (passif)
-  $(GREEN)security$(RESET)        Activer le lab malware / code"
+	@echo "  $(GREEN)ai$(RESET)              Ajouter Ollama (modèle léger)"
+	@echo "  $(GREEN)intel$(RESET)           Activer le collecteur Onion/Tor (passif)"
+	@echo "  $(GREEN)security$(RESET)        Activer le lab malware / code"
 	@echo "  $(GREEN)down$(RESET)            Arrêter"
 	@echo "  $(GREEN)build$(RESET)           Rebuild images"
 	@echo "  $(GREEN)logs$(RESET)            Logs temps réel"
