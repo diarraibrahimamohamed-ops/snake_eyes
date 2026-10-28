@@ -173,7 +173,7 @@ def _parse_nessus(data):
     findings = []
     for item in root.findall(".//ReportItem"):
         host = item.get("host-ip") or item.get("hostname") or ""
-        risk = item.get("risk_factor", "None")
+        risk = item.findtext("risk_factor") or item.get("risk_factor", "None")
         cvss = item.findtext("cvss3_base_score") or item.findtext("cvss_base_score")
         cve = item.findtext("cve") or ""
         refs = [x.text for x in item.findall("see_also") if x.text]
