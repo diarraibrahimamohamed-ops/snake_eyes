@@ -79,6 +79,7 @@ class EngagementViewSet(viewsets.ModelViewSet):
         engagement = self.get_object()
         targets = list(engagement.targets.select_related("asset").filter(enabled=True))
         checks = []
+        checks.append({"id": "active_assessments_enabled", "ok": bool(getattr(settings, "ACTIVE_ASSESSMENTS_ENABLED", False)), "detail": "Les évaluations actives sont explicitement activées par la politique serveur."})
         checks.append({"id": "authorization_reference", "ok": bool(engagement.authorization_reference), "detail": "Référence d'autorisation présente."})
         checks.append({"id": "approved", "ok": engagement.approved, "detail": "Engagement approuvé par un rôle habilité."})
         checks.append({"id": "time_window", "ok": engagement.starts_at <= timezone.now() <= engagement.ends_at, "detail": "Fenêtre de mission valide actuellement."})
@@ -112,6 +113,8 @@ class EngagementViewSet(viewsets.ModelViewSet):
         return Response({"status": "closed"})
 
     def _policy_check(self, engagement, profile):
+        if not getattr(settings, "ACTIVE_ASSESSMENTS_ENABLED", False):
+            return "Les évaluations actives sont désactivées par défaut. Importez un rapport de scanner tiers ou activez explicitement ce mode dans un environnement isolé non productif."
         if getattr(settings, "SECURITY_ASSESSMENT_KILL_SWITCH", False):
             return "Le kill-switch serveur bloque temporairement tous les nouveaux scans."
         if not engagement.is_active_now:
