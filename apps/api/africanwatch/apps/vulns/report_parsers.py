@@ -120,6 +120,10 @@ def _parse_nuclei_json(obj):
 
 
 def _parse_nmap(data):
+    # Reject DTD/entity declarations explicitly; reports are untrusted input.
+    upper_prefix = data[:65536].upper()
+    if b"<!DOCTYPE" in upper_prefix or b"<!ENTITY" in upper_prefix:
+        raise ReportParseError("DTD et entités XML ne sont pas autorisés.")
     try:
         root = ET.fromstring(data)
     except ET.ParseError as exc:
@@ -158,6 +162,9 @@ def _parse_nmap(data):
 
 
 def _parse_nessus(data):
+    upper_prefix = data[:65536].upper()
+    if b"<!DOCTYPE" in upper_prefix or b"<!ENTITY" in upper_prefix:
+        raise ReportParseError("DTD et entités XML ne sont pas autorisés.")
     try:
         root = ET.fromstring(data)
     except ET.ParseError as exc:
