@@ -141,3 +141,34 @@ def test_legacy_active_scanning_tasks_are_disabled_by_default(org, settings):
     job = ScanJob.objects.get(id=result["job_id"])
     assert job.status == ScanJob.Status.FAILED
     assert "désactivés" in job.error_message
+
+
+@pytest.mark.django_db
+def test_report_findings_are_tenant_scoped(api_client, org, admin_user):
+    from africanwatch.apps.vulns.models import ReportFinding
+
+    other = Organization.objects.create(
+        name="Other CERT Findings", slug="other-cert-findings", org_type="cert",
+        country="KEN", country_name="Kenya", contact_email="findings@example.test",
+    )
+    own_report = ReportIngestion.objects.create(
+        organization=org, uploaded_by=admin_user, source_type="nuclei_json",
+        report_file="reports/own.json", original_filename="own.json",
+        sha256="c" * 64, size_bytes=1, status=ReportIngestion.Status.COMPLETED,
+    )
+    other_report = ReportIngestion.objects.create(
+        organization=other, uploaded_by=None, source_type="nuclei_json",
+        report_file="reports/other.json", original_filename="other.json",
+        sha256="d" * 64, size_bytes=1, status=ReportIngestion.Status.COMPLETED,
+    )
+    ReportFinding.objects.create(
+        report=own_report, fingerprint="e" * 64, title="Own finding", severity="high",
+    )
+    ReportFinding.objects.create(
+        report=other_report, fingerprint="f" * 64, title="Other tenant finding", severity="critical",
+    )
+
+    response = api_client.get("/api/v1/report-findings/")
+    assert response.status_code == 200
+    results = response.data["results"] if isinstance(response.data, dict) else response.data
+    assert [item["title"] for item in results] == ["Own finding"]
