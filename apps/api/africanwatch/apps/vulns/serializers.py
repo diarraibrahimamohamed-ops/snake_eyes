@@ -3,9 +3,7 @@ from pathlib import PurePath
 
 from rest_framework import serializers
 
-from africanwatch.apps.vulns.models import (
-    ReportFinding, ReportIngestion, ScanJob, Vulnerability,
-)
+from africanwatch.apps.vulns.models import ReportFinding, ReportIngestion, ScanJob, Vulnerability
 from africanwatch.apps.vulns.report_parsers import MAX_REPORT_BYTES
 
 
@@ -26,9 +24,14 @@ class VulnerabilitySerializer(serializers.ModelSerializer):
     def validate_asset(self, asset):
         request = self.context.get("request")
         user = getattr(request, "user", None)
-        if user and user.is_authenticated and not user.is_superuser and getattr(user, "role", "") != "super_admin":
-            if not user.organization_id or asset.organization_id != user.organization_id:
-                raise serializers.ValidationError("Actif hors du périmètre de votre organisation.")
+        if (
+            user
+            and user.is_authenticated
+            and not user.is_superuser
+            and getattr(user, "role", "") != "super_admin"
+            and (not user.organization_id or asset.organization_id != user.organization_id)
+        ):
+            raise serializers.ValidationError("Actif hors du périmètre de votre organisation.")
         return asset
 
 
