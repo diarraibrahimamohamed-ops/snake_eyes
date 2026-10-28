@@ -121,3 +121,22 @@ def test_processing_keeps_unknown_asset_unlinked(org, admin_user, tmp_path, sett
     assert result["status"] == "completed"
     assert report.unmatched_findings == 1
     assert report.findings.get().asset is None
+
+
+@pytest.mark.django_db
+def test_legacy_active_scanning_tasks_are_disabled_by_default(org, settings):
+    from africanwatch.apps.vulns.models import ScanJob
+    from africanwatch.apps.vulns.tasks import run_scheduled_scans, scan_asset
+
+    settings.ACTIVE_ASSESSMENTS_ENABLED = False
+    asset = Asset.objects.create(
+        organization=org, name="Protected app", asset_type="domain", value="protected.example.test",
+        scan_enabled=True, is_active=True,
+    )
+    scheduled = run_scheduled_scans.run()
+    result = scan_asset.run(str(asset.id), "full")
+    assert scheduled == {"scheduled": 0, "status": "disabled_by_policy"}
+    assert result["status"] == "blocked"
+    job = ScanJob.objects.get(id=result["job_id"])
+    assert job.status == ScanJob.Status.FAILED
+    assert "désactivés" in job.error_message
