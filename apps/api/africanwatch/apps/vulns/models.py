@@ -1,7 +1,7 @@
 """AfricaWatch — Vulnerability Management Models"""
-import uuid
 from django.db import models
-from africanwatch.apps.organizations.models import TimeStampedModel, Asset, User
+
+from africanwatch.apps.organizations.models import Asset, TimeStampedModel, User
 
 class Vulnerability(TimeStampedModel):
     class Severity(models.TextChoices):
