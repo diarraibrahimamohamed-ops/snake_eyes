@@ -7,6 +7,9 @@ from django.utils import timezone
 
 logger = logging.getLogger("africanwatch.vulns")
 
+# Celery autodiscovery imports this module; import the report worker so it is registered.
+from africanwatch.apps.vulns.report_tasks import process_report_ingestion as _process_report_ingestion  # noqa: F401
+
 
 @shared_task(bind=True, max_retries=2, queue="scans")
 def scan_asset(self, asset_id: str, scan_type: str = "full", triggered_by: str | None = None):
