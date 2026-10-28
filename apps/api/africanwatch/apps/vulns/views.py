@@ -79,9 +79,10 @@ class ScanJobViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         u = self.request.user
-        if not u.is_superuser and getattr(u,"role","") != "super_admin":
-            if u.organization:
-                qs = qs.filter(asset__organization=u.organization)
+        if not u.is_superuser and getattr(u, "role", "") != "super_admin":
+            if not u.organization_id:
+                return qs.none()
+            qs = qs.filter(asset__organization_id=u.organization_id)
         return qs
 
 class ReportIngestionViewSet(viewsets.ReadOnlyModelViewSet):
