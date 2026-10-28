@@ -1,6 +1,7 @@
 """Add tenant-scoped scanner report ingestion and normalized findings."""
 import django.db.models.deletion
 import uuid
+from africanwatch.apps.vulns.models import report_upload_path
 from django.db import migrations, models
 
 
@@ -22,7 +23,7 @@ class Migration(migrations.Migration):
                     ("nuclei_jsonl", "Nuclei JSONL"), ("nessus_xml", "Nessus XML"),
                     ("shodan_json", "Shodan JSON"), ("shodan_csv", "Shodan CSV"),
                 ], max_length=20)),
-                ("report_file", models.FileField(max_length=500, upload_to="reports/")),
+                ("report_file", models.FileField(max_length=500, upload_to=report_upload_path)),
                 ("original_filename", models.CharField(max_length=255)),
                 ("sha256", models.CharField(max_length=64)),
                 ("size_bytes", models.PositiveBigIntegerField()),
