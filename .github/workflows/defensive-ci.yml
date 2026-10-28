@@ -1,0 +1,125 @@
+name: AfricaWatch Defensive CI
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: defensive-ci-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  lint-api:
+    name: API syntax and defensive-module lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install Ruff
+        run: pip install ruff==0.3.5
+      - name: Check API syntax and undefined names
+        working-directory: apps/api
+        run: ruff check . --select E999,F821
+      - name: Check changed defensive modules for unused imports and syntax issues
+        working-directory: apps/api
+        run: >
+          ruff check
+          africanwatch/apps/vulns/models.py
+          africanwatch/apps/vulns/serializers.py
+          africanwatch/apps/vulns/views.py
+          africanwatch/apps/vulns/tasks.py
+          africanwatch/apps/vulns/report_parsers.py
+          africanwatch/apps/vulns/report_tasks.py
+          africanwatch/apps/vulns/migrations/0002_report_ingestion.py
+          africanwatch/apps/organizations/migrations/0002_user_avatar.py
+          africanwatch/apps/threat_intel/views.py
+          africanwatch/apps/offensive_lab/serializers.py
+          tests/test_report_parsers.py
+          tests/test_report_ingestion.py
+          tests/test_security_lab.py
+          tests/test_adversary_analysis.py
+          --select F401,F821,E999
+
+  test-api:
+    name: Django API tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: africanwatch_test
+          POSTGRES_USER: aw_user
+          POSTGRES_PASSWORD: test_password
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --timeout 5s
+          --retries 5
+        ports:
+          - "5432:5432"
+      redis:
+        image: redis:7-alpine
+        ports:
+          - "6379:6379"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/api/requirements.txt
+      - name: Install dependencies
+        working-directory: apps/api
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          python -m spacy download fr_core_news_sm || true
+      - name: Run API test suite
+        working-directory: apps/api
+        env:
+          DJANGO_SETTINGS_MODULE: africanwatch.settings.test
+          POSTGRES_DB: africanwatch_test
+          POSTGRES_USER: aw_user
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_HOST: localhost
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: test-ci-secret-key-not-for-production
+          ACTIVE_ASSESSMENTS_ENABLED: "False"
+        run: pytest --tb=short -q --cov=. --cov-report=xml
+
+  test-web:
+    name: Frontend lint and TypeScript
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install frontend dependencies
+        run: npm install --legacy-peer-deps
+      - name: ESLint
+        run: npm run lint
+      - name: TypeScript
+        run: npm run typecheck
+
+  security-scan:
+    name: High and critical dependency scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
