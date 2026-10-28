@@ -76,6 +76,7 @@ export default function ReportIngestionPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [findings, setFindings] = useState<Finding[]>([]);
   const [sourceType, setSourceType] = useState("nmap_xml");
+  const [organizationId, setOrganizationId] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -140,7 +141,7 @@ export default function ReportIngestionPage() {
     setError("");
     setNotice("");
     try {
-      const { data } = await api.reportIngestions.upload(file, sourceType);
+      const { data } = await api.reportIngestions.upload(file, sourceType, organizationId.trim() || undefined);
       setNotice(`Rapport reçu. Référence : ${data.id}`);
       setFile(null);
       const input = document.getElementById("report-file") as HTMLInputElement | null;
@@ -204,6 +205,13 @@ export default function ReportIngestionPage() {
               className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none focus:border-cyan-500">
               {SOURCES.map((source) => <option key={source.value} value={source.value}>{source.label}</option>)}
             </select>
+            <div>
+              <label className="mb-1 block text-sm text-slate-300" htmlFor="organization-id">Organisation (admin global uniquement)</label>
+              <input id="organization-id" value={organizationId} onChange={(e) => setOrganizationId(e.target.value)}
+                placeholder="UUID de l’organisation, si nécessaire"
+                className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-slate-100 outline-none placeholder:text-slate-600 focus:border-cyan-500" />
+              <p className="mt-1 text-xs text-slate-500">Pour les comptes rattachés à une organisation, ce champ peut rester vide.</p>
+            </div>
             <label htmlFor="report-file" className="flex min-h-40 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-cyan-800/70 bg-slate-950/70 px-5 py-7 text-center transition hover:border-cyan-500">
               <FileUp className="mb-3 h-8 w-8 text-cyan-400" />
               <span className="text-sm font-medium text-slate-200">{file?.name || "Choisir un fichier"}</span>
