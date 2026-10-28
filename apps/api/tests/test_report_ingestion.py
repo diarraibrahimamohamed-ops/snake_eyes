@@ -172,3 +172,12 @@ def test_report_findings_are_tenant_scoped(api_client, org, admin_user):
     assert response.status_code == 200
     results = response.data["results"] if isinstance(response.data, dict) else response.data
     assert [item["title"] for item in results] == ["Own finding"]
+
+
+
+def test_celery_discovers_report_ingestion_task():
+    from africanwatch.apps.vulns import tasks
+    from africanwatch.apps.vulns.report_tasks import process_report_ingestion
+
+    assert tasks._process_report_ingestion is process_report_ingestion
+    assert process_report_ingestion.name == "africanwatch.apps.vulns.report_tasks.process_report_ingestion"
