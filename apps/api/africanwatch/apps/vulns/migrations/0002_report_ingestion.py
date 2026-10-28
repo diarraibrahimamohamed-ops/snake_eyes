@@ -1,8 +1,10 @@
 """Add tenant-scoped scanner report ingestion and normalized findings."""
-import django.db.models.deletion
 import uuid
-from africanwatch.apps.vulns.models import report_upload_path
+
+import django.db.models.deletion
 from django.db import migrations, models
+
+from africanwatch.apps.vulns.models import report_upload_path
 
 
 class Migration(migrations.Migration):
