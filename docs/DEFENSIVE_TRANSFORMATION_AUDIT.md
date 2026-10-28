@@ -72,6 +72,23 @@ This document distinguishes **present in the repository**, **documented/claimed*
 
 **Validation status:** source changes are committed on this branch, but the full Django/pytest suite, frontend build, and Docker integration tests have not yet been executed in this environment. These changes must be treated as an implementation in progress, not a production certification. The next step is to run CI and fix all regressions before extending the report-ingestion workflow.
 
+## Ingestion Hub — first implementation slice
+
+The branch now contains the initial Django API pipeline under the existing `vulns` app:
+
+- `POST /api/v1/report-ingestions/upload/` — multipart upload with `source_type` and `file`; requires an authenticated analyst-level role and an organization.
+- `GET /api/v1/report-ingestions/` and `GET /api/v1/report-ingestions/{uuid}/` — tenant-scoped report status and metadata.
+- `GET /api/v1/report-findings/?report={uuid}` — normalized findings, tenant-scoped.
+- Supported source types: `nmap_xml`, `nuclei_json`, `nuclei_jsonl`, `nessus_xml`, `shodan_json`, `shodan_csv`.
+- Upload limit: 10 MiB; parser limit: 20,000 findings per report. XML DTD/entity declarations are rejected. The original report is stored with SHA-256 metadata and duplicate content is rejected per tenant.
+- Processing runs as a Celery task. It never launches a scanner or makes network requests. A finding is linked only by exact normalized match to an active asset in the same organization; unknown targets stay unlinked for review. It never creates an asset from report data.
+- Normalized evidence is retained separately from analyst-managed vulnerability status/remediation. Audit events record upload and processing outcomes.
+- The legacy vulnerability scan task and scheduled scanner now also obey `ACTIVE_ASSESSMENTS_ENABLED=False`; scheduled scans are skipped and direct queued scan jobs are marked blocked/failed by policy.
+
+### Validation caveat
+
+Parser and API/task regression tests have been added, but they have **not yet been executed** in a full Django/PostgreSQL environment. GitHub Actions is configured to run on pull requests targeting `main`, not on pushes to this feature branch. Do not treat the pipeline as production-certified until the draft PR CI is green and deployment isolation/storage policies have been reviewed.
+
 ## Implementation plan
 
 ### Phase 0 — safety boundary and inventory (started on this branch)
