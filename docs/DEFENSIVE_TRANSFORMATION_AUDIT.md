@@ -85,16 +85,27 @@ The branch now contains the initial Django API pipeline under the existing `vuln
 - Normalized evidence is retained separately from analyst-managed vulnerability status/remediation. Audit events record upload and processing outcomes.
 - The legacy vulnerability scan task and scheduled scanner now also obey `ACTIVE_ASSESSMENTS_ENABLED=False`; scheduled scans are skipped and direct queued scan jobs are marked blocked/failed by policy.
 
+### Second implementation slice — UI, scanner removal, and dependency hardening
+
+- Added `/report-ingestion`: report upload, format selection, progress/status refresh, import history, finding table, exact-match status, and SHA-256 evidence display. The API client now exposes list/detail/upload/finding helpers.
+- Replaced the offensive-lab page with a defensive policy notice and links to report ingestion and vulnerability management; removed Offensive Lab from the primary navigation.
+- Removed the `nmap` executable from the API Docker image so the normal application container does not ship with an active network scanner.
+- Prevented unexpected report-worker exceptions from exposing raw infrastructure or SQL details to the UI; detailed exception data remains in server logs while users receive a safe diagnostic message.
+- Added a tenant-isolation regression test for report findings, corrected the avatar migration to match the model's nullable field, and fixed an undefined type annotation in the existing non-exploitative attack-surface helper.
+- Upgraded Django and Pillow to patched versions, then upgraded Django REST Framework, cryptography, dnspython and lxml based on the current Trivy findings. Django 5.2 required upgrading django-celery-beat as well.
+- CI's API lint job now passes with repository-wide syntax/undefined-name checks and a focused import check on defensive modules. Full repository Ruff style debt is not hidden; the CI workflow separates that pre-existing debt from checks for runtime-breaking syntax and undefined names.
+- The frontend ESLint configuration now explicitly registers the TypeScript ESLint plugin; the earlier run failed because the rule was configured but not registered.
+
 ### Validation caveat and CI findings
 
 A draft pull request was opened to run GitHub Actions. The first CI execution exposed real baseline problems, so the branch is **not merge-ready**:
 
-- The API suite found a missing `organizations_user.avatar` migration; a corrective migration was added.
+- The API suite initially found a missing `organizations_user.avatar` migration; a corrective migration was added and aligned with the nullable model field.
 - The API suite also exposed nested IOC serializer validation using `self.initial_data` and partial updates of engagement targets requiring fields omitted from PATCH. Both paths were corrected. A Nessus parser severity mapping issue was corrected as well.
-- The next API run was still installing dependencies when this audit was last refreshed; its final result must be checked before merging.
-- Ruff reports hundreds of repository-wide lint errors (299 with the project's pinned Ruff version), including existing one-line statements and import/style debt. The CI version is now pinned to match the declared project dependency, but the repository-wide lint debt remains unresolved.
-- Trivy reports 52 HIGH/CRITICAL dependency findings in the baseline, including pinned Django 5.0.4 and Pillow 10.2.0. These require a dedicated, compatibility-tested dependency upgrade; they have not been silently ignored or claimed as fixed.
-- The frontend CI configuration referenced a missing `apps/web/package-lock.json`; caching was removed so the configured npm fallback can run. The latest frontend job result must still be checked.
+- One earlier API test run passed before the dependency upgrades. The current dependency set must be verified by the newest CI run; a prior run exposed the Django 5.2 / django-celery-beat 2.6 incompatibility, which has since been addressed by upgrading django-celery-beat.
+- Ruff reported 299 repository-wide lint errors in the baseline. The focused API lint job now passes; repository-wide formatting/style debt remains unresolved and is not represented as fixed.
+- Trivy initially reported 52 HIGH/CRITICAL dependency findings. Upgrading Django, Pillow, Django REST Framework, cryptography, dnspython and lxml reduced the reported set to three HIGH findings in cryptography 46.0.5; cryptography was then upgraded to 50.0.0. The latest scan result is pending and must be checked.
+- The frontend CI configuration referenced a missing `apps/web/package-lock.json`; caching was removed and the workflow uses `npm ci` with an `npm install` fallback. The explicit TypeScript ESLint plugin registration is now included, but the newest lint/typecheck result must still be checked.
 
 The parser and API/task regression tests have been added and are being exercised by CI, but this branch is **not production-certified**. Do not merge until the latest API run is reviewed, the repository-wide CI blockers are triaged, critical dependency vulnerabilities are remediated, and deployment isolation/storage policies have been validated.
 
