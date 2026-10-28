@@ -14,7 +14,8 @@ def test_attack_surface_derives_non_exploitative_nodes():
     surface = build_attack_surface(result, asset_criticality="high")
     assert surface["risk_signal"] > 0
     assert any(node["stage"] == "exposure" for node in surface["nodes"])
-    assert all("exploit" not in str(node).lower() for node in surface["nodes"])
+    assert all(node["stage"] not in {"exploit", "execution"} for node in surface["nodes"])
+    assert all("payload" not in str(node).lower() for node in surface["nodes"])
 
 
 def test_detection_expectations_are_bounded():
