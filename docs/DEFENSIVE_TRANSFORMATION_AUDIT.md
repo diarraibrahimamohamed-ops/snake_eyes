@@ -85,9 +85,18 @@ The branch now contains the initial Django API pipeline under the existing `vuln
 - Normalized evidence is retained separately from analyst-managed vulnerability status/remediation. Audit events record upload and processing outcomes.
 - The legacy vulnerability scan task and scheduled scanner now also obey `ACTIVE_ASSESSMENTS_ENABLED=False`; scheduled scans are skipped and direct queued scan jobs are marked blocked/failed by policy.
 
-### Validation caveat
+### Validation caveat and CI findings
 
-Parser and API/task regression tests have been added, but they have **not yet been executed** in a full Django/PostgreSQL environment. GitHub Actions is configured to run on pull requests targeting `main`, not on pushes to this feature branch. Do not treat the pipeline as production-certified until the draft PR CI is green and deployment isolation/storage policies have been reviewed.
+A draft pull request was opened to run GitHub Actions. The first CI execution exposed real baseline problems, so the branch is **not merge-ready**:
+
+- The API suite found a missing `organizations_user.avatar` migration; a corrective migration was added.
+- The API suite also exposed nested IOC serializer validation using `self.initial_data` and partial updates of engagement targets requiring fields omitted from PATCH. Both paths were corrected. A Nessus parser severity mapping issue was corrected as well.
+- The next API run was still installing dependencies when this audit was last refreshed; its final result must be checked before merging.
+- Ruff reports hundreds of repository-wide lint errors (299 with the project's pinned Ruff version), including existing one-line statements and import/style debt. The CI version is now pinned to match the declared project dependency, but the repository-wide lint debt remains unresolved.
+- Trivy reports 52 HIGH/CRITICAL dependency findings in the baseline, including pinned Django 5.0.4 and Pillow 10.2.0. These require a dedicated, compatibility-tested dependency upgrade; they have not been silently ignored or claimed as fixed.
+- The frontend CI configuration referenced a missing `apps/web/package-lock.json`; caching was removed so the configured npm fallback can run. The latest frontend job result must still be checked.
+
+The parser and API/task regression tests have been added and are being exercised by CI, but this branch is **not production-certified**. Do not merge until the latest API run is reviewed, the repository-wide CI blockers are triaged, critical dependency vulnerabilities are remediated, and deployment isolation/storage policies have been validated.
 
 ## Implementation plan
 
