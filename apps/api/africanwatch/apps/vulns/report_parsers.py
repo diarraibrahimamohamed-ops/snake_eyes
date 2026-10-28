@@ -12,7 +12,6 @@ import xml.etree.ElementTree as ET
 
 MAX_REPORT_BYTES = 10 * 1024 * 1024
 MAX_FINDINGS = 20_000
-MAX_XML_ELEMENTS = 500_000
 SEVERITIES = {"info", "low", "medium", "high", "critical"}
 
 
@@ -121,7 +120,7 @@ def _parse_nuclei_json(obj):
 
 def _parse_nmap(data):
     # Reject DTD/entity declarations explicitly; reports are untrusted input.
-    upper_prefix = data[:65536].upper()
+    upper_prefix = data.upper()
     if b"<!DOCTYPE" in upper_prefix or b"<!ENTITY" in upper_prefix:
         raise ReportParseError("DTD et entités XML ne sont pas autorisés.")
     try:
@@ -134,7 +133,7 @@ def _parse_nmap(data):
     for host in root.findall("host"):
         addresses = [x.get("addr", "") for x in host.findall("address") if x.get("addr")]
         hostnames = [x.get("name", "") for x in host.findall("./hostnames/hostname") if x.get("name")]
-        target = (hostnames + addresses)
+        target = (addresses + hostnames)
         external_asset = target[0] if target else ""
         for port in host.findall("./ports/port"):
             state = port.find("state")
