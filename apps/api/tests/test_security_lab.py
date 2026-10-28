@@ -1,7 +1,7 @@
 import json
 import pytest
-from unittest.mock import patch
 from africanwatch.apps.security_lab.owasp import api_review
+from africanwatch.apps.security_lab import local_tools
 from africanwatch.apps.security_lab.local_tools import resolve_under
 
 
@@ -20,11 +20,12 @@ def test_api_review_accepts_security_scheme():
 def test_local_path_escape_is_blocked(tmp_path, monkeypatch):
     root = tmp_path / "root"
     root.mkdir()
-    (root / "ok.txt").write_text("ok")
-    monkeypatch.setenv("SECURITY_CODE_ROOT", str(root))
-    # Module roots are read at import time in production; the explicit escape assertion is covered by implementation semantics.
+    org_root = root / "org-test"
+    org_root.mkdir()
+    (org_root / "ok.txt").write_text("ok")
+    monkeypatch.setitem(local_tools.ROOTS, "code", root)
     with pytest.raises(ValueError):
-        resolve_under("code", "../outside.txt")
+        resolve_under("code", "org-test", "../outside.txt")
 
 
 
