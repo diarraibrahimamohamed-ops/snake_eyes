@@ -171,7 +171,16 @@ def process_report_ingestion(self, report_id: str):
     except Exception as exc:
         logger.exception("Report ingestion failed: %s", report.id)
         report.status = ReportIngestion.Status.FAILED
-        report.error_message = str(exc)[:1000]
+        # Parser errors are safe to show; unexpected exceptions may contain paths,
+        # SQL fragments or infrastructure details and must stay in server logs.
+        try:
+            from africanwatch.apps.vulns.report_parsers import ReportParseError
+            safe_message = str(exc)[:500] if isinstance(exc, ReportParseError) else (
+                "Le traitement a échoué. Consultez les journaux techniques avec la référence du rapport."
+            )
+        except Exception:
+            safe_message = "Le traitement a échoué. Consultez les journaux techniques avec la référence du rapport."
+        report.error_message = safe_message
         report.completed_at = timezone.now()
         report.save(update_fields=["status", "error_message", "completed_at", "updated_at"])
         return {"status": "failed", "report_id": str(report.id), "error": report.error_message}
