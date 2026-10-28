@@ -60,6 +60,18 @@ This document distinguishes **present in the repository**, **documented/claimed*
 9. **Supply chain**: reconcile the README AGPL badge with the actual LICENSE contents; generate an SBOM and dependency vulnerability report before releases.
 10. **Deployment posture**: Compose includes development defaults and a development Django settings target. Production must use production settings, strong secrets, TLS, restricted service networking and managed credentials.
 
+## Work completed in the first implementation slice
+
+- Added `ACTIVE_ASSESSMENTS_ENABLED=False` as the default server policy and documented it in `.env.example`.
+- The active-assessment API preflight reports the policy state, and the API launch policy rejects jobs while the feature is disabled.
+- The Celery worker independently blocks queued jobs when the feature flag is off, preventing previously queued work from bypassing the API gate.
+- Added a regression test for the disabled default and updated the existing launch test to opt in explicitly for its isolated test scenario.
+- Replaced the John-the-Ripper execution path with a bounded hash-format policy audit. It reports format counts and legacy-format warnings only; it does not crack passwords, verify credentials, or return hash values. Removed offensive tools from the Security Lab's availability inventory.
+- Updated Security Lab UI language to reflect format-only auditing and updated the legacy assessment screen to disclose the disabled-by-default institutional policy.
+- Updated README positioning and added this audit/roadmap.
+
+**Validation status:** source changes are committed on this branch, but the full Django/pytest suite, frontend build, and Docker integration tests have not yet been executed in this environment. These changes must be treated as an implementation in progress, not a production certification. The next step is to run CI and fix all regressions before extending the report-ingestion workflow.
+
 ## Implementation plan
 
 ### Phase 0 — safety boundary and inventory (started on this branch)
