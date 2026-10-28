@@ -7,7 +7,7 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("organizations", "0001_initial"),
+        ("organizations", "0002_user_avatar"),
         ("vulns", "0001_initial"),
     ]
 
