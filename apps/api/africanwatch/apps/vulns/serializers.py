@@ -3,7 +3,6 @@ from pathlib import PurePath
 
 from rest_framework import serializers
 
-from africanwatch.apps.organizations.models import Asset
 from africanwatch.apps.vulns.models import (
     ReportFinding, ReportIngestion, ScanJob, Vulnerability,
 )
