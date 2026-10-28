@@ -25,3 +25,20 @@ def test_local_path_escape_is_blocked(tmp_path, monkeypatch):
     # Module roots are read at import time in production; the explicit escape assertion is covered by implementation semantics.
     with pytest.raises(ValueError):
         resolve_under("code", "../outside.txt")
+
+
+
+def test_hash_policy_audit_classifies_formats_without_cracking(tmp_path, monkeypatch):
+    from africanwatch.apps.security_lab import local_tools
+
+    org_id = "org-test"
+    root = tmp_path / org_id
+    root.mkdir()
+    (root / "hashes.txt").write_text("$argon2id$v=19$m=65536,t=3,p=4$example\n" + "a" * 32 + "\n")
+    monkeypatch.setitem(local_tools.ROOTS, "credentials", tmp_path)
+    result = local_tools.credential_audit(org_id, "hashes.txt")
+    assert result["mode"] == "format-policy-audit-only"
+    assert result["format_counts"]["argon2"] == 1
+    assert result["format_counts"]["md5_or_unsalted_legacy"] == 1
+    assert result["password_cracking_performed"] is False
+    assert "credential_values" not in result
