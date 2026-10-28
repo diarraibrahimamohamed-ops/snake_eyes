@@ -82,9 +82,10 @@ export default function OffensiveLabPage() {
 
   return <AppLayout><div className="p-4 space-y-5">
     <header className="flex items-center justify-between"><div>
-      <div className="flex items-center gap-2 text-cyan-300"><Crosshair className="w-5 h-5"/><h1 className="text-base font-bold tracking-widest">OFFENSIVE LAB // CONTROLLED</h1></div>
-      <p className="text-xs text-gray-500 mt-1">Threat-informed red team • scope verrouillé • attack-path • drift • télémétrie • aucune exploitation autonome</p>
+      <div className="flex items-center gap-2 text-cyan-300"><Crosshair className="w-5 h-5"/><h1 className="text-base font-bold tracking-widest">EXPOSURE ASSESSMENT // LEGACY</h1></div>
+      <p className="text-xs text-gray-500 mt-1">Module historique en transition vers l’import de rapports externes ; les évaluations actives sont désactivées par défaut par la politique serveur.</p>
     </div><button onClick={load} className="p-2 border border-cyan-900/40 text-cyan-500 rounded-sm"><RefreshCw className="w-4 h-4"/></button></header>
+    <div role="alert" className="border border-amber-700/50 bg-amber-950/30 text-amber-200 p-3 text-xs leading-5 rounded-sm">Mode institutionnel défensif : lancement des scans actifs bloqué par défaut. Utilisez les constats existants pour la revue et privilégiez l’ingestion de rapports de scanners externes. La création d’un engagement ne réactive pas les scans.</div>
     <div className="grid grid-cols-4 gap-3">
       <div className="bg-[#0a1628] border border-cyan-900/30 p-3 rounded-sm"><ShieldCheck className="w-4 h-4 text-green-400 mb-2"/><div className="text-[10px] text-gray-500 tracking-widest">ENGAGEMENTS AUTORISÉS</div><div className="text-2xl text-cyan-300 font-bold">{engagements.filter(e=>e.approved).length}</div></div>
       <div className="bg-[#0a1628] border border-cyan-900/30 p-3 rounded-sm"><Clock className="w-4 h-4 text-orange-400 mb-2"/><div className="text-[10px] text-gray-500 tracking-widest">JOBS</div><div className="text-2xl text-cyan-300 font-bold">{jobs.length}</div></div>
