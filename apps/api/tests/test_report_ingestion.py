@@ -71,3 +71,53 @@ def test_upload_rejects_extension_mismatch(api_client):
         format="multipart",
     )
     assert response.status_code == 400
+
+
+@pytest.mark.django_db
+def test_processing_links_only_to_exact_asset_in_same_tenant(org, admin_user, tmp_path, settings):
+    settings.MEDIA_ROOT = tmp_path
+    from africanwatch.apps.vulns.report_tasks import process_report_ingestion
+
+    payload = (
+        b'{"template-id":"CVE-2024-1234","host":"app.example.test",'
+        b'"info":{"name":"Example CVE","severity":"high",'
+        b'"description":"Test finding","classification":{"cve-id":["CVE-2024-1234"],"cvss-score":8.1}}}'
+    )
+    asset = Asset.objects.create(
+        organization=org, name="App", asset_type="domain", value="app.example.test"
+    )
+    report = ReportIngestion.objects.create(
+        organization=org, uploaded_by=admin_user, source_type="nuclei_json",
+        report_file=SimpleUploadedFile("report.json", payload, content_type="application/json"),
+        original_filename="report.json", sha256=hashlib.sha256(payload).hexdigest(),
+        size_bytes=len(payload),
+    )
+    result = process_report_ingestion.run(str(report.id))
+    report.refresh_from_db()
+    assert result["status"] == "completed"
+    assert report.total_findings == 1
+    assert report.linked_findings == 1
+    assert report.unmatched_findings == 0
+    finding = report.findings.get()
+    assert finding.asset_id == asset.id
+    assert finding.vulnerability is not None
+    assert finding.vulnerability.cve_id == "CVE-2024-1234"
+
+
+@pytest.mark.django_db
+def test_processing_keeps_unknown_asset_unlinked(org, admin_user, tmp_path, settings):
+    settings.MEDIA_ROOT = tmp_path
+    from africanwatch.apps.vulns.report_tasks import process_report_ingestion
+
+    payload = b'{"info":{"name":"Unknown host finding","severity":"low"},"host":"unknown.example.test"}'
+    report = ReportIngestion.objects.create(
+        organization=org, uploaded_by=admin_user, source_type="nuclei_json",
+        report_file=SimpleUploadedFile("unknown.json", payload, content_type="application/json"),
+        original_filename="unknown.json", sha256=hashlib.sha256(payload).hexdigest(),
+        size_bytes=len(payload),
+    )
+    result = process_report_ingestion.run(str(report.id))
+    report.refresh_from_db()
+    assert result["status"] == "completed"
+    assert report.unmatched_findings == 1
+    assert report.findings.get().asset is None
