@@ -118,7 +118,7 @@ export default function ReportIngestionPage() {
   useEffect(() => {
     if (selectedId) void loadFindings(selectedId);
     else setFindings([]);
-  }, [selectedId, loadFindings]);
+  }, [selectedId, selected?.status, loadFindings]);
 
   useEffect(() => {
     if (!reports.some((r) => r.status === "pending" || r.status === "processing")) return;
