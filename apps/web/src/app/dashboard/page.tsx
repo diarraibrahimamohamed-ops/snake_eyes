@@ -26,7 +26,7 @@ function Card({title,badge,badgeColor="cyan",children,className}:{title:string;b
 
 export default function DashboardPage() {
   const {threatScore,alerts,iocs,isConnected}=useDashboardStore();
-  const [time,setTime]=useState(null);
+  const [time,setTime]=useState<Date | null>(null);
   const [mounted,setMounted]=useState(false);
   useWebSocket();
   useEffect(()=>{

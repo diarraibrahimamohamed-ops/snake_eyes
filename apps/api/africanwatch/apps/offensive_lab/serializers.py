@@ -55,8 +55,10 @@ class EngagementTargetSerializer(serializers.ModelSerializer):
         read_only_fields = ["created_at"]
 
     def validate(self, attrs):
-        engagement = attrs["engagement"]
-        asset = attrs["asset"]
+        engagement = attrs.get("engagement", getattr(self.instance, "engagement", None))
+        asset = attrs.get("asset", getattr(self.instance, "asset", None))
+        if engagement is None or asset is None:
+            raise serializers.ValidationError("L'engagement et l'actif sont requis.")
         if engagement.organization_id != asset.organization_id:
             raise serializers.ValidationError("La cible doit appartenir à la même organisation que l'engagement.")
         if asset.asset_type not in ACTIVE_ASSET_TYPES:

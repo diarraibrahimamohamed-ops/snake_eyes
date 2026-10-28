@@ -29,7 +29,7 @@ def asset(db, org):
 
 
 @pytest.mark.django_db
-def test_engagement_scope_hash_and_launch_gate(api_client, admin_user, org, asset):
+def test_engagement_scope_hash_and_launch_gate(api_client, admin_user, org, asset, settings):
     engagement = Engagement.objects.create(
         organization=org, name="Quarterly assessment", authorization_reference="AUTH-2026-001",
         starts_at=timezone.now() - timedelta(minutes=1), ends_at=timezone.now() + timedelta(hours=2),
@@ -45,6 +45,8 @@ def test_engagement_scope_hash_and_launch_gate(api_client, admin_user, org, asse
     assert engagement.approved is True
     assert len(engagement.scope_hash) == 64
 
+    # Active scans are available only when explicitly enabled for an isolated test/lab.
+    settings.ACTIVE_ASSESSMENTS_ENABLED = True
     with patch("africanwatch.apps.offensive_lab.tasks.run_assessment") as task:
         task.delay.return_value.id = "task-1"
         launched = api_client.post(
@@ -53,6 +55,22 @@ def test_engagement_scope_hash_and_launch_gate(api_client, admin_user, org, asse
         )
     assert launched.status_code == 202
     assert launched.json()["status"] == "queued"
+
+
+@pytest.mark.django_db
+def test_active_assessments_disabled_by_default(api_client, org, asset, settings):
+    settings.ACTIVE_ASSESSMENTS_ENABLED = False
+    engagement = Engagement.objects.create(
+        organization=org, name="Defensive default", authorization_reference="AUTH-DEFENSIVE",
+        starts_at=timezone.now() - timedelta(minutes=1), ends_at=timezone.now() + timedelta(hours=1),
+    )
+    target = EngagementTarget.objects.create(engagement=engagement, asset=asset)
+    response = api_client.post(
+        f"/api/v1/engagements/{engagement.id}/launch/",
+        {"profile": "dns_recon", "target_id": str(target.id)}, format="json",
+    )
+    assert response.status_code == 409
+    assert "désactivées par défaut" in response.json()["error"]
 
 
 @pytest.mark.django_db

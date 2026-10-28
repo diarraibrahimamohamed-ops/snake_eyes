@@ -78,6 +78,14 @@ def run_assessment(self, job_id: str):
         current_scope = scope_hash(engagement)
         if job.status == AssessmentJob.Status.CANCELLED:
             return {"status": "cancelled"}
+        # Defense-in-depth: queued tasks must not bypass the API feature gate.
+        if not getattr(settings, "ACTIVE_ASSESSMENTS_ENABLED", False):
+            job.status = AssessmentJob.Status.BLOCKED
+            job.error_message = "Les évaluations actives sont désactivées par la politique serveur."
+            job.completed_at = timezone.now()
+            job.save(update_fields=["status", "error_message", "completed_at"])
+            append_event(job, "blocked_active_assessment_policy", {"policy": "ACTIVE_ASSESSMENTS_ENABLED=false"})
+            return {"status": "blocked", "reason": "active_assessments_disabled"}
         if not engagement.is_active_now or not job.target.enabled or not job.target.asset.is_active or not job.target.asset.scan_enabled:
             job.status = AssessmentJob.Status.BLOCKED
             job.error_message = "Engagement, actif ou cible non autorisé(e)."

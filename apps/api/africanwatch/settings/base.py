@@ -17,6 +17,8 @@ AI_MAX_OUTPUT_TOKENS = env.int("AI_MAX_OUTPUT_TOKENS", default=384)
 AI_TIMEOUT_SECONDS = env.int("AI_TIMEOUT_SECONDS", default=15)
 AI_MODEL = env("AI_MODEL", default="qwen2.5:1.5b-instruct-q3_K_S")
 LAB_MODE = env.bool("LAB_MODE", default=False)
+# Institutional default: active assessment runners remain disabled until explicitly enabled.
+ACTIVE_ASSESSMENTS_ENABLED = env.bool("ACTIVE_ASSESSMENTS_ENABLED", default=False)
 SECURITY_ASSESSMENT_MAX_RUNTIME = env.int("SECURITY_ASSESSMENT_MAX_RUNTIME", default=180)
 SECURITY_ASSESSMENT_KILL_SWITCH = env.bool("SECURITY_ASSESSMENT_KILL_SWITCH", default=False)
 SECURITY_ASSESSMENT_CONCURRENCY_RETRY_SECONDS = env.int("SECURITY_ASSESSMENT_CONCURRENCY_RETRY_SECONDS", default=5)

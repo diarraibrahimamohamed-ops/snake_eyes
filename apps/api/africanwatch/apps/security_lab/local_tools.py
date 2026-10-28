@@ -9,7 +9,6 @@ ROOTS = {
     "container": Path(os.getenv("SECURITY_CONTAINER_ROOT", "/security-lab/containers")).resolve(),
     "secrets": Path(os.getenv("SECURITY_CODE_ROOT", "/security-lab/code")).resolve(),
     "credentials": Path(os.getenv("CREDENTIAL_LAB_ROOT", "/security-lab/credentials")).resolve(),
-    "wordlists": Path(os.getenv("CREDENTIAL_WORDLIST_ROOT", "/security-lab/wordlists")).resolve(),
 }
 
 
@@ -25,7 +24,7 @@ def resolve_under(root_key: str, organization_id, relative: str) -> Path:
 
 
 def availability() -> list[dict]:
-    tools = ["nmap", "nuclei", "john", "hashcat", "semgrep", "trivy", "gitleaks", "docker"]
+    tools = ["semgrep", "trivy", "gitleaks", "docker"]
     return [{"tool": t, "available": bool(shutil.which(t))} for t in tools]
 
 
@@ -64,20 +63,65 @@ def local_container(organization_id, relative: str) -> dict:
 
 
 def credential_audit(organization_id, relative_hash_file: str, wordlist_relative: str = "") -> dict:
-    if os.getenv("ALLOW_LOCAL_CREDENTIAL_AUDIT", "false").lower() != "true":
-        return {"enabled": False, "reason": "ALLOW_LOCAL_CREDENTIAL_AUDIT=false", "mode": "offline-only"}
+    """Audit stored hash *formats* only; never crack, verify or reveal credentials."""
     hashfile = resolve_under("credentials", organization_id, relative_hash_file)
-    result = {"enabled": True, "hash_file": relative_hash_file, "tool": "john", "mode": "offline-only"}
-    if not shutil.which("john"):
-        result["available"] = False
-        return result
-    args = ["john"]
-    if wordlist_relative:
-        wordlist = resolve_under("wordlists", organization_id, wordlist_relative)
-        args.append("--wordlist=" + str(wordlist))
-    args.extend(["--pot=/tmp/afw-john.pot", str(hashfile)])
-    result["run"] = _run_fixed(args, cwd=hashfile.parent, timeout=300)
-    return result
+    if not hashfile.is_file():
+        raise ValueError("Le fichier de hashes doit être un fichier régulier")
+    if hashfile.stat().st_size > 5 * 1024 * 1024:
+        raise ValueError("Fichier de hashes trop volumineux (maximum 5 Mio)")
+
+    import re
+
+    format_patterns = [
+        ("argon2", re.compile(r"^\$argon2(?:id|i|d)\$")),
+        ("bcrypt", re.compile(r"^\$2[aby]\$")),
+        ("scrypt", re.compile(r"^\$scrypt\$")),
+        ("pbkdf2", re.compile(r"^\$pbkdf2-")),
+        ("sha512crypt", re.compile(r"^\$6\$")),
+        ("sha256crypt", re.compile(r"^\$5\$")),
+        ("md5crypt", re.compile(r"^\$1\$")),
+        ("md5_or_unsalted_legacy", re.compile(r"^[0-9a-fA-F]{32}$")),
+        ("sha1_or_unsalted_legacy", re.compile(r"^[0-9a-fA-F]{40}$")),
+        ("sha256_or_unsalted_legacy", re.compile(r"^[0-9a-fA-F]{64}$")),
+    ]
+    counts = {}
+    total = 0
+    invalid_or_unknown = 0
+    with hashfile.open("r", encoding="utf-8", errors="replace") as stream:
+        for line in stream:
+            value = line.strip()
+            if not value:
+                continue
+            total += 1
+            if total > 100_000:
+                raise ValueError("Trop d'entrées (maximum 100 000)")
+            label = next((name for name, pattern in format_patterns if pattern.search(value)), None)
+            if label is None:
+                invalid_or_unknown += 1
+                continue
+            counts[label] = counts.get(label, 0) + 1
+
+    legacy_count = sum(count for name, count in counts.items() if "legacy" in name or name == "md5crypt")
+    modern_count = counts.get("argon2", 0) + counts.get("bcrypt", 0) + counts.get("scrypt", 0) + counts.get("pbkdf2", 0)
+    return {
+        "enabled": True,
+        "mode": "format-policy-audit-only",
+        "file": relative_hash_file,
+        "total_entries": total,
+        "format_counts": counts,
+        "unknown_or_unclassified": invalid_or_unknown,
+        "policy_findings": [
+            {"severity": "high", "code": "LEGACY_HASH_FORMATS", "count": legacy_count,
+             "message": "Des formats de hash historiques ou non recommandés sont présents; planifier une migration après authentification réussie."}
+            for _ in [0] if legacy_count
+        ] + [
+            {"severity": "medium", "code": "NO_MODERN_PASSWORD_HASHES", "count": total,
+             "message": "Aucun format Argon2, bcrypt, scrypt ou PBKDF2 reconnu dans le fichier."}
+            for _ in [0] if total and not modern_count
+        ],
+        "credential_values_persisted": False,
+        "password_cracking_performed": False,
+    }
 
 
 def remote_auth_plan(target: str, service: str) -> dict:

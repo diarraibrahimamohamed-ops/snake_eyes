@@ -35,15 +35,20 @@ class IOCSerializer(serializers.ModelSerializer):
         read_only_fields = ["country_code","country_name","asn","asn_name","latitude","longitude","hit_count"]
 
     def validate_value(self, value):
-        import re
-        t = self.initial_data.get("ioc_type","")
-        if t == "md5" and not re.match(r'^[a-fA-F0-9]{32}$', value):
-            raise serializers.ValidationError("Hash MD5 invalide (32 hex chars)")
-        if t == "sha256" and not re.match(r'^[a-fA-F0-9]{64}$', value):
-            raise serializers.ValidationError("Hash SHA-256 invalide (64 hex chars)")
-        if t == "cve" and not re.match(r'^CVE-\d{4}-\d{4,}$', value, re.IGNORECASE):
-            raise serializers.ValidationError("Format CVE invalide (ex: CVE-2024-12345)")
         return value.strip()
+
+    def validate(self, attrs):
+        import re
+
+        ioc_type = attrs.get("ioc_type", "")
+        value = attrs.get("value", "")
+        if ioc_type == "md5" and not re.fullmatch(r"[a-fA-F0-9]{32}", value):
+            raise serializers.ValidationError({"value": "Hash MD5 invalide (32 caractères hexadécimaux)."})
+        if ioc_type == "sha256" and not re.fullmatch(r"[a-fA-F0-9]{64}", value):
+            raise serializers.ValidationError({"value": "Hash SHA-256 invalide (64 caractères hexadécimaux)."})
+        if ioc_type == "cve" and not re.fullmatch(r"CVE-\d{4}-\d{4,}", value, re.IGNORECASE):
+            raise serializers.ValidationError({"value": "Format CVE invalide (ex. CVE-2024-12345)."})
+        return attrs
 
 
 class IOCBulkSerializer(serializers.Serializer):

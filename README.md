@@ -78,6 +78,12 @@ africanwatch/
 
 ---
 
+## 🛡️ Profil institutionnel défensif (branche de transformation)
+
+La branche `defensive-institutional-pivot` fait évoluer AfricaWatch vers une plateforme défensive institutionnelle. Les évaluations réseau actives sont **désactivées par défaut** par le paramètre serveur `ACTIVE_ASSESSMENTS_ENABLED=False`. L'API et le worker Celery appliquent tous deux cette politique. Le chemin privilégié est l'import de rapports d'outils tiers, leur normalisation, leur rattachement aux actifs autorisés et leur corrélation avec la Threat Intelligence. N'activez pas les évaluations actives en production ; toute activation expérimentale doit rester explicite et confinée à un laboratoire isolé.
+
+La cartographie de l'existant, les écarts documentés/non démontrés et la feuille de route se trouvent dans [`docs/DEFENSIVE_TRANSFORMATION_AUDIT.md`](docs/DEFENSIVE_TRANSFORMATION_AUDIT.md). Les éléments présents dans le code ne sont pas automatiquement considérés comme validés en production : les tests d'intégration, l'isolation des workers et les contrôles de séparation des tenants restent des critères de livraison.
+
 ## 🧭 Mode LITE et Offensive Lab
 
 Le projet démarre désormais en **mode LITE** pour une machine de 8 Go de RAM : PostgreSQL, Redis, API, Celery et frontend. Elasticsearch, Kafka, Kibana et le monitoring lourd sont optionnels (`make lab`). L’IA locale est optionnelle (`make ai`) et peut utiliser un petit modèle Ollama ; le code conserve un fallback déterministe lorsqu’elle est désactivée.

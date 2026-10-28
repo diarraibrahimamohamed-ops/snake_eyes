@@ -23,7 +23,7 @@ def build_attack_surface(result: dict[str, Any], *, asset_criticality: str = "me
     services = list((result.get("ports") or {}).get("services") or [])
     web = result.get("web") or {}
     dns = result.get("dns") or {}
-    nodes: list[AttackNode] = []
+    nodes: list[dict[str, Any]] = []
 
     if services:
         nodes.append({

@@ -81,6 +81,18 @@ class APIClient {
     remediate: (id: string, notes?: string) => this.http.post(`/vulnerabilities/${id}/remediate/`, { notes }),
     acceptRisk: (id: string, justification?: string) => this.http.post(`/vulnerabilities/${id}/accept-risk/`, { justification }),
   };
+  reportIngestions = {
+    list: (p?: any) => this.http.get("/report-ingestions/", { params: p }),
+    get: (id: string) => this.http.get(`/report-ingestions/${id}/`),
+    findings: (reportId: string, p?: any) => this.http.get("/report-findings/", { params: { report: reportId, ...p } }),
+    upload: (file: File, source_type: string, organization?: string) => {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("source_type", source_type);
+      if (organization) form.append("organization", organization);
+      return this.http.post("/report-ingestions/upload/", form, { timeout: 120000 });
+    },
+  };
   assets = {
     list: (p?: any) => this.http.get("/assets/", { params: p }),
     create: (d: any) => this.http.post("/assets/", d),
