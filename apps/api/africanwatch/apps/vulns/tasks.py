@@ -11,9 +11,18 @@ def scan_asset(self, asset_id: str, scan_type: str = "full", triggered_by: str |
     """Lance un scan de vulnérabilités sur un actif."""
     from africanwatch.apps.organizations.models import Asset
     from africanwatch.apps.vulns.models import Vulnerability, ScanJob
+    from django.conf import settings
     try:
         asset = Asset.objects.get(id=asset_id)
         from africanwatch.apps.vulns.models import ScanJob
+        if not getattr(settings, "ACTIVE_ASSESSMENTS_ENABLED", False):
+            job = ScanJob.objects.create(
+                asset=asset, scan_type=scan_type, status=ScanJob.Status.FAILED,
+                completed_at=timezone.now(), triggered_by_id=triggered_by if triggered_by else None,
+                error_message="Les scans actifs sont désactivés par la politique institutionnelle. Importez un rapport de scanner tiers.",
+            )
+            logger.warning("Active scan blocked by policy for asset %s (job %s)", asset.id, job.id)
+            return {"status": "blocked", "reason": "active_assessments_disabled", "job_id": str(job.id)}
         job = ScanJob.objects.create(
             asset=asset, scan_type=scan_type,
             status=ScanJob.Status.RUNNING, started_at=timezone.now(),
@@ -68,7 +77,11 @@ def scan_asset(self, asset_id: str, scan_type: str = "full", triggered_by: str |
 
 @shared_task(queue="scans")
 def run_scheduled_scans():
-    """Lance les scans planifiés sur tous les actifs actifs."""
+    """Schedule scans only when the operator explicitly enables the isolated lab mode."""
+    from django.conf import settings
+    if not getattr(settings, "ACTIVE_ASSESSMENTS_ENABLED", False):
+        logger.info("Scheduled scans skipped: ACTIVE_ASSESSMENTS_ENABLED=False")
+        return {"scheduled": 0, "status": "disabled_by_policy"}
     from africanwatch.apps.organizations.models import Asset
     from datetime import timedelta
     count = 0
