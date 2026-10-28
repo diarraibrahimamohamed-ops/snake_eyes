@@ -109,6 +109,8 @@ jobs:
         run: npm run lint
       - name: TypeScript
         run: npm run typecheck
+      - name: Next.js production build
+        run: npm run build
 
   security-scan:
     name: High and critical dependency scan
