@@ -39,7 +39,7 @@ langdetect==1.0.9
 deep-translator==1.11.4
 pandas==2.2.1
 numpy==1.26.4
-cryptography==46.0.5
+cryptography==50.0.0
 Pillow==13.0.0
 geoip2==4.8.0
 maxminddb==2.6.1
