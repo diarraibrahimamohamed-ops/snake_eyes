@@ -1,6 +1,8 @@
 """AfricaWatch — Vulnerability Management Tasks"""
 import logging
+
 from celery import shared_task
+from django.conf import settings
 from django.utils import timezone
 
 logger = logging.getLogger("africanwatch.vulns")
@@ -10,11 +12,9 @@ logger = logging.getLogger("africanwatch.vulns")
 def scan_asset(self, asset_id: str, scan_type: str = "full", triggered_by: str | None = None):
     """Lance un scan de vulnérabilités sur un actif."""
     from africanwatch.apps.organizations.models import Asset
-    from africanwatch.apps.vulns.models import Vulnerability, ScanJob
-    from django.conf import settings
+    from africanwatch.apps.vulns.models import ScanJob, Vulnerability
     try:
         asset = Asset.objects.get(id=asset_id)
-        from africanwatch.apps.vulns.models import ScanJob
         if not getattr(settings, "ACTIVE_ASSESSMENTS_ENABLED", False):
             job = ScanJob.objects.create(
                 asset=asset, scan_type=scan_type, status=ScanJob.Status.FAILED,
