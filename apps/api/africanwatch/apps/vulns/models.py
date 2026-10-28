@@ -65,7 +65,7 @@ def report_upload_path(instance, filename):
     """Store report evidence by tenant and report UUID, never by user-supplied path."""
     from pathlib import PurePath
     suffix = PurePath(filename or "").suffix.lower()
-    if suffix not in {".xml", ".json", ".jsonl", ".csv"}:
+    if suffix not in {".xml", ".json", ".jsonl", ".ndjson", ".csv", ".nessus"}:
         suffix = ".bin"
     return f"reports/{instance.organization_id}/{instance.id}/source{suffix}"
 
