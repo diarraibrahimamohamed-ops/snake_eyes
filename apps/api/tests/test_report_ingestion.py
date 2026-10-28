@@ -9,7 +9,7 @@ from africanwatch.apps.organizations.models import Asset, Organization
 from africanwatch.apps.vulns.models import ReportIngestion
 
 
-@pytest.mark.django_db
+@pytest.mark.django_db(transaction=True)
 def test_upload_report_returns_accepted_and_records_hash(api_client, org, admin_user):
     payload = b'{"info":{"name":"Example finding","severity":"medium"},"host":"app.example.test"}'
     upload = SimpleUploadedFile("nuclei.json", payload, content_type="application/json")
@@ -26,6 +26,7 @@ def test_upload_report_returns_accepted_and_records_hash(api_client, org, admin_
     assert report.sha256 == hashlib.sha256(payload).hexdigest()
     assert report.status == ReportIngestion.Status.PENDING
     assert response.data["source_type"] == "nuclei_json"
+    enqueue.assert_called_once_with(str(report.id))
 
 
 @pytest.mark.django_db
