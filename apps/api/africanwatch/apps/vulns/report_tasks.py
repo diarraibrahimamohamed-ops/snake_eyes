@@ -57,8 +57,8 @@ def _severity_counts(findings):
 @shared_task(bind=True, max_retries=2, queue="scans")
 def process_report_ingestion(self, report_id: str):
     """Parse a stored report offline and normalize evidence for one tenant."""
-    from africanwatch.apps.vulns.models import ReportIngestion, ReportFinding, Vulnerability
     from africanwatch.apps.organizations.models import AuditLog
+    from africanwatch.apps.vulns.models import ReportFinding, ReportIngestion, Vulnerability
 
     try:
         report = ReportIngestion.objects.select_related("organization", "uploaded_by").get(id=report_id)
@@ -75,7 +75,10 @@ def process_report_ingestion(self, report_id: str):
 
     try:
         from africanwatch.apps.vulns.report_parsers import (
-            MAX_REPORT_BYTES, ReportParseError, parse_report, sha256_bytes,
+            MAX_REPORT_BYTES,
+            ReportParseError,
+            parse_report,
+            sha256_bytes,
         )
         raw = report.report_file.read(MAX_REPORT_BYTES + 1)
         if not raw or len(raw) > MAX_REPORT_BYTES:
