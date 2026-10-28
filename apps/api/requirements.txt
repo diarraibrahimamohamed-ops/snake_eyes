@@ -10,7 +10,7 @@ django-redis==5.4.0
 django-storages==1.14.2
 django-axes==6.4.0
 django-prometheus==2.3.1
-django-celery-beat==2.6.0
+django-celery-beat==2.8.1
 django-celery-results==2.5.1
 psycopg2-binary==2.9.9
 redis==5.0.3
