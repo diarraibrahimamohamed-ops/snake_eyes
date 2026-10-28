@@ -1,17 +1,23 @@
 """AfricaWatch — Vulnerability Management Views"""
 from django.core.files.base import ContentFile
 from django.db import IntegrityError, transaction
-from django.db.models import Count, Avg
+from django.db.models import Avg, Count
 from django.utils import timezone
-from rest_framework import status, viewsets, permissions
-from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
-from africanwatch.apps.organizations.models import AuditLog
-from africanwatch.apps.vulns.models import ReportFinding, ReportIngestion, Vulnerability, ScanJob
-from africanwatch.apps.vulns.serializers import (ReportFindingSerializer, ReportIngestionSerializer, ReportUploadSerializer, VulnerabilitySerializer, ScanJobSerializer)
-from africanwatch.security.permissions import CanOperateSecurityAssessment
 
+from africanwatch.apps.organizations.models import AuditLog
+from africanwatch.apps.vulns.models import ReportFinding, ReportIngestion, ScanJob, Vulnerability
+from africanwatch.apps.vulns.serializers import (
+    ReportFindingSerializer,
+    ReportIngestionSerializer,
+    ReportUploadSerializer,
+    ScanJobSerializer,
+    VulnerabilitySerializer,
+)
+from africanwatch.security.permissions import CanOperateSecurityAssessment
 
 class VulnerabilityViewSet(viewsets.ModelViewSet):
     queryset = Vulnerability.objects.select_related("asset","asset__organization")
