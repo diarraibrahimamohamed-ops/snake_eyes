@@ -1,5 +1,6 @@
 """AfricaWatch — AI Engine Views"""
 import logging
+from django.core.exceptions import ValidationError
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -43,7 +44,7 @@ def summarize_incident(request):
     from africanwatch.apps.soc.models import Incident
     try:
         incident = Incident.objects.get(id=incident_id)
-    except (Incident.DoesNotExist, ValueError, TypeError):
+    except (Incident.DoesNotExist, ValueError, TypeError, ValidationError):
         return Response({"error": "Incident introuvable"}, status=404)
 
     user = request.user
@@ -74,7 +75,14 @@ def threat_prediction(request):
     last_7d = timezone.now() - timedelta(days=7)
     base = IOC.objects.filter(created_at__gte=last_7d, is_active=True)
     if not is_global_admin:
-        base = base.filter(source_organization_id=org_id) if org_id else base.none()
+        organization = getattr(user, "organization", None)
+        tlp_order = ["white", "green", "amber", "red"]
+        if organization is None:
+            base = base.none()
+        else:
+            level = getattr(organization, "tlp_level", "white")
+            max_index = tlp_order.index(level) if level in tlp_order else 0
+            base = base.filter(tlp_level__in=tlp_order[:max_index + 1])
     trending = list(base.exclude(malware_families=[]).values("malware_families").annotate(count=Count("id")).order_by("-count")[:8])
     obs_qs = IntelligenceObservation.objects.filter(organization_id=org_id, retrieved_at__gte=last_7d) if org_id else IntelligenceObservation.objects.none()
     signals = Counter()
@@ -107,6 +115,9 @@ def extract_iocs_from_text(request):
     iocs = _extract_iocs(text)
     saved = []
     if request.data.get("save_iocs", False) and iocs:
+        user = request.user
+        if not (getattr(user, "is_superuser", False) or getattr(user, "role", "") == "super_admin"):
+            return Response({"error": "La persistance des IOCs partagés est réservée aux administrateurs globaux."}, status=403)
         from africanwatch.apps.threat_intel.models import IOC
         from africanwatch.apps.threat_intel.tasks import enrich_ioc
         from django.utils import timezone
