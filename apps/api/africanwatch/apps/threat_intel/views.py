@@ -150,12 +150,14 @@ class ThreatFeedViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
-        if _is_global_admin(user):
-            return qs
         levels = _visible_tlp_levels(user)
         if not levels:
             return qs.none()
-        return qs.filter(is_public=True, tlp_level__in=levels)
+        if not _is_global_admin(user):
+            qs = qs.filter(is_public=True, tlp_level__in=levels)
+        return qs.annotate(
+            ioc_count=Count("iocs", filter=Q(iocs__tlp_level__in=levels), distinct=True)
+        )
 
     @action(detail=True, methods=["post"], url_path="fetch")
     def trigger_fetch(self, request, pk=None):
@@ -167,7 +169,7 @@ class ThreatFeedViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get"])
     def stats(self, request, pk=None):
         feed = self.get_object()
-        iocs = feed.iocs.all()
+        iocs = feed.iocs.filter(tlp_level__in=_visible_tlp_levels(request.user))
         return Response({"total_iocs":iocs.count(),"active_iocs":iocs.filter(is_active=True).count(),
             "african_threats":iocs.filter(is_african_threat=True).count(),
             "by_severity":list(iocs.values("severity").annotate(count=Count("id"))),
@@ -275,10 +277,21 @@ class ThreatActorViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         return _write_permissions(self)
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        levels = _visible_tlp_levels(self.request.user)
+        if not levels:
+            return qs.none()
+        return qs.annotate(
+            ioc_count=Count("iocs", filter=Q(iocs__tlp_level__in=levels), distinct=True),
+            campaign_count=Count("campaigns", filter=Q(campaigns__tlp_level__in=levels), distinct=True),
+        )
+
     @action(detail=True, methods=["get"])
     def timeline(self, request, pk=None):
         actor = self.get_object()
-        return Response(list(actor.campaigns.order_by("start_date").values(
+        campaigns = actor.campaigns.filter(tlp_level__in=_visible_tlp_levels(request.user))
+        return Response(list(campaigns.order_by("start_date").values(
             "id","name","start_date","end_date","is_ongoing","severity")))
 
 
@@ -298,4 +311,6 @@ class CampaignViewSet(viewsets.ModelViewSet):
         levels = _visible_tlp_levels(self.request.user)
         if not levels:
             return qs.none()
-        return qs.filter(tlp_level__in=levels)
+        return qs.filter(tlp_level__in=levels).annotate(
+            ioc_count=Count("iocs", filter=Q(iocs__tlp_level__in=levels), distinct=True)
+        )

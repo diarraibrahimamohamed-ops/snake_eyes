@@ -30,11 +30,24 @@ class UserCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"password_confirm":"Les mots de passe ne correspondent pas."})
         request = self.context.get("request")
         target_org = data.get("organization")
-        if request and request.user.is_authenticated and not request.user.is_superuser:
-            if target_org != request.user.organization:
+        user = getattr(request, "user", None) if request else None
+        is_global_admin = bool(
+            user
+            and getattr(user, "is_authenticated", False)
+            and (user.is_superuser or getattr(user, "role", "") == "super_admin")
+        )
+        if user and getattr(user, "is_authenticated", False) and not is_global_admin:
+            if target_org != user.organization:
                 raise serializers.ValidationError({"organization":"Vous ne pouvez créer un utilisateur que dans votre organisation."})
             if data.get("role") == User.Role.SUPER_ADMIN:
                 raise serializers.ValidationError({"role":"Création de super-administrateur interdite via cette API."})
+        elif (
+            user
+            and getattr(user, "is_authenticated", False)
+            and not user.is_superuser
+            and data.get("role") == User.Role.SUPER_ADMIN
+        ):
+            raise serializers.ValidationError({"role":"Création de super-administrateur interdite via cette API."})
         return data
     def create(self, validated_data):
         p = validated_data.pop("password")
@@ -52,7 +65,13 @@ class AssetSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         request = self.context.get("request")
         target_org = attrs.get("organization", getattr(self.instance, "organization", None))
-        if request and request.user.is_authenticated and not request.user.is_superuser and target_org != request.user.organization:
+        user = getattr(request, "user", None) if request else None
+        is_global_admin = bool(
+            user
+            and getattr(user, "is_authenticated", False)
+            and (user.is_superuser or getattr(user, "role", "") == "super_admin")
+        )
+        if user and getattr(user, "is_authenticated", False) and not is_global_admin and target_org != user.organization:
             raise serializers.ValidationError({"organization": "Actif limité à votre organisation."})
         return attrs
 
