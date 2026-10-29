@@ -58,7 +58,7 @@ This document distinguishes **present in the repository**, **documented/claimed*
 6. **Audit integrity**: a hash chain detects tampering only if the chain's head is anchored/protected independently. Document retention, access control, time synchronization and export verification.
 7. **AI claims**: label summaries as assistance and forecast scores as heuristics until a documented benchmark validates precision, recall, calibration and drift.
 8. **Institutional governance**: add data classification/TLP enforcement, retention/deletion policy, case evidence chain, approvals for response actions, incident runbooks, backup/restore drills and operational SLAs.
-9. **Supply chain**: reconcile the README AGPL badge with the actual LICENSE contents; generate an SBOM and dependency vulnerability report before releases.
+9. **Supply chain**: the README license badge and wording now match the repository's GPL v2 LICENSE; generate an SBOM and dependency vulnerability report for each release.
 10. **Deployment posture**: Compose includes development defaults and a development Django settings target. Production must use production settings, strong secrets, TLS, restricted service networking and managed credentials.
 
 ## Work completed in the first implementation slice
@@ -70,8 +70,9 @@ This document distinguishes **present in the repository**, **documented/claimed*
 - Replaced the John-the-Ripper execution path with a bounded hash-format policy audit. It reports format counts and legacy-format warnings only; it does not crack passwords, verify credentials, or return hash values. Removed offensive tools from the Security Lab's availability inventory.
 - Updated Security Lab UI language to reflect format-only auditing and updated the legacy assessment screen to disclose the disabled-by-default institutional policy.
 - Updated README positioning and added this audit/roadmap.
+- Aligned the README license badge and licensing description with the repository's GPL v2 `LICENSE` file.
 
-**Validation status:** source changes are committed on this branch, but the full Django/pytest suite, frontend build, and Docker integration tests have not yet been executed in this environment. These changes must be treated as an implementation in progress, not a production certification. The next step is to run CI and fix all regressions before extending the report-ingestion workflow.
+**Validation status:** this paragraph originally described the first draft before CI had run and is superseded by `Validation status after merge` below. The initial implementation is merged into `main`; current test results and remaining staging prerequisites are recorded in that later section. No production certification is implied.
 
 ## Ingestion Hub — first implementation slice
 
