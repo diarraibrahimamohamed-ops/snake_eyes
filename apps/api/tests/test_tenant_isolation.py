@@ -2,7 +2,6 @@
 import pytest
 from django.core.cache import cache
 from django.utils import timezone
-from rest_framework.test import APIClient
 
 from africanwatch.apps.organizations.models import Asset, AuditLog, Organization, User
 from africanwatch.apps.soc.models import Alert, Incident
