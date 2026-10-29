@@ -189,17 +189,27 @@ def test_tlp_clearance_filters_iocs_feeds_and_campaigns(
     campaign_ids = {str(row["id"]) for row in _items(response)}
     assert str(visible_campaign.id) in campaign_ids
     assert str(hidden_campaign.id) not in campaign_ids
+    visible_campaign_row = next(row for row in _items(response) if str(row["id"]) == str(visible_campaign.id))
+    assert visible_campaign_row["ioc_count"] == 0
 
     response = api_client.get(f"/api/v1/feeds/{sample_feed.id}/stats/")
     assert response.status_code == 200
     assert response.data["total_iocs"] == 1
     assert str(white_ioc.id) != str(red_ioc.id)
 
+    response = api_client.get(f"/api/v1/feeds/")
+    feed_row = next(row for row in _items(response) if str(row["id"]) == str(sample_feed.id))
+    assert feed_row["ioc_count"] == 1
+
     response = api_client.get(f"/api/v1/threat-actors/{actor.id}/timeline/")
     assert response.status_code == 200
     timeline_ids = {str(row["id"]) for row in response.data}
     assert str(visible_campaign.id) in timeline_ids
     assert str(hidden_campaign.id) not in timeline_ids
+
+    response = api_client.get("/api/v1/threat-actors/")
+    actor_row = next(row for row in _items(response) if str(row["id"]) == str(actor.id))
+    assert actor_row["campaign_count"] == 1
 
 
 @pytest.mark.django_db
@@ -309,3 +319,29 @@ def test_unassigned_user_cannot_summarize_another_organizations_incident(api_cli
     assert response.status_code == 200
     assert response.data["trending_threats"] == []
     assert response.data["observation_count_7d"] == 0
+
+
+@pytest.mark.django_db
+def test_global_application_admin_can_manage_assets_across_organizations(api_client):
+    target_org = _other_org()
+    global_admin = User.objects.create_user(
+        email="global-admin@example.test",
+        password="TestPassword@123!",
+        first_name="Global",
+        last_name="Admin",
+        organization=None,
+        role=User.Role.SUPER_ADMIN,
+    )
+    api_client.force_authenticate(user=global_admin)
+    response = api_client.post(
+        "/api/v1/assets/",
+        {
+            "organization": str(target_org.id),
+            "name": "Global-admin asset",
+            "asset_type": "domain",
+            "value": "global.example.test",
+        },
+        format="json",
+    )
+    assert response.status_code == 201, response.data
+    assert str(response.data["organization"]) == str(target_org.id)
