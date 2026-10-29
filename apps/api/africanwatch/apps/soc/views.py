@@ -2,11 +2,36 @@
 from django.db.models import Count
 from django.utils import timezone
 from rest_framework import viewsets, permissions, status
+from rest_framework.permissions import SAFE_METHODS
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from africanwatch.apps.soc.models import Alert, Incident, IncidentTimeline, DetectionRule
 from africanwatch.apps.soc.serializers import AlertSerializer, IncidentSerializer, IncidentTimelineSerializer, DetectionRuleSerializer
-from africanwatch.security.permissions import org_scope
+from africanwatch.security.permissions import org_scope, MinimumRole, CanOperateSecurityAssessment
+
+
+class GlobalAdminRole(MinimumRole):
+    minimum_role = "super_admin"
+
+
+def _is_global_admin(user):
+    return bool(getattr(user, "is_superuser", False) or getattr(user, "role", "") == "super_admin")
+
+
+def _validate_tenant_write(serializer, user):
+    if _is_global_admin(user):
+        return None
+    organization = getattr(user, "organization", None)
+    if organization is None:
+        raise PermissionDenied("Utilisateur sans organisation")
+    submitted_org = serializer.validated_data.get("organization")
+    if submitted_org is not None and submitted_org.id != organization.id:
+        raise PermissionDenied("Organisation hors périmètre")
+    assignee = serializer.validated_data.get("assigned_to", getattr(serializer.instance, "assigned_to", None))
+    if assignee is not None and assignee.organization_id != organization.id:
+        raise PermissionDenied("Utilisateur assigné hors organisation")
+    return organization
 
 
 class DetectionRuleViewSet(viewsets.ModelViewSet):
@@ -16,6 +41,11 @@ class DetectionRuleViewSet(viewsets.ModelViewSet):
     filterset_fields = ["rule_type","severity","status","is_african_specific"]
     search_fields = ["name","description"]
     ordering_fields = ["name","severity","hit_count"]
+
+    def get_permissions(self):
+        if self.action in {"create", "update", "partial_update", "destroy"}:
+            return [GlobalAdminRole()]
+        return super().get_permissions()
 
 
 class AlertViewSet(viewsets.ModelViewSet):
@@ -27,8 +57,27 @@ class AlertViewSet(viewsets.ModelViewSet):
     ordering_fields = ["created_at","severity"]
     ordering = ["-created_at"]
 
+    def get_permissions(self):
+        if self.request.method not in SAFE_METHODS:
+            return [CanOperateSecurityAssessment()]
+        return super().get_permissions()
+
     def get_queryset(self):
         return org_scope(super().get_queryset(), self.request.user, field="organization")
+
+    def perform_create(self, serializer):
+        organization = _validate_tenant_write(serializer, self.request.user)
+        if organization is not None:
+            serializer.save(organization=organization)
+        else:
+            serializer.save()
+
+    def perform_update(self, serializer):
+        organization = _validate_tenant_write(serializer, self.request.user)
+        if organization is not None:
+            serializer.save(organization=organization)
+        else:
+            serializer.save()
 
     @action(detail=True, methods=["post"])
     def acknowledge(self, request, pk=None):
@@ -110,15 +159,28 @@ class IncidentViewSet(viewsets.ModelViewSet):
     ordering_fields = ["detected_at","severity","status"]
     ordering = ["-detected_at"]
 
+    def get_permissions(self):
+        if self.request.method not in SAFE_METHODS:
+            return [CanOperateSecurityAssessment()]
+        return super().get_permissions()
+
     def get_queryset(self):
         return org_scope(super().get_queryset(), self.request.user, field="organization")
 
     def perform_create(self, serializer):
-        incident = serializer.save()
+        organization = _validate_tenant_write(serializer, self.request.user)
+        incident = serializer.save(organization=organization) if organization is not None else serializer.save()
         IncidentTimeline.objects.create(
             incident=incident, timestamp=timezone.now(),
             author=self.request.user, action="Incident ouvert", is_automated=False,
         )
+
+    def perform_update(self, serializer):
+        organization = _validate_tenant_write(serializer, self.request.user)
+        if organization is not None:
+            serializer.save(organization=organization)
+        else:
+            serializer.save()
 
     @action(detail=True, methods=["post"], url_path="add-timeline")
     def add_timeline(self, request, pk=None):
