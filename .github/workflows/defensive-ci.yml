@@ -32,6 +32,7 @@ jobs:
           africanwatch/apps/vulns/models.py
           africanwatch/apps/vulns/serializers.py
           africanwatch/apps/vulns/views.py
+          africanwatch/security/permissions.py
           africanwatch/apps/vulns/tasks.py
           africanwatch/apps/vulns/report_parsers.py
           africanwatch/apps/vulns/report_tasks.py
@@ -41,6 +42,7 @@ jobs:
           africanwatch/apps/offensive_lab/serializers.py
           tests/test_report_parsers.py
           tests/test_report_ingestion.py
+          tests/test_vulnerability_permissions.py
           tests/test_security_lab.py
           tests/test_adversary_analysis.py
           --select F401,F821,E999
