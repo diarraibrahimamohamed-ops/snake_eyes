@@ -1,9 +1,9 @@
 # 🛡️ AfricaWatch
 ### Plateforme Africaine de Cybersécurité, Threat Intelligence & OSINT
 
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
+[![License: GPL v2](https://img.shields.io/badge/License-GPL_v2-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.12-blue)](https://python.org)
-[![Django](https://img.shields.io/badge/Django-5.0-green)](https://djangoproject.com)
+[![Django](https://img.shields.io/badge/Django-5.2-green)](https://djangoproject.com)
 [![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org)
 
 > *La première plateforme de cybersécurité souveraine conçue pour et par l'Afrique.*
@@ -78,9 +78,9 @@ africanwatch/
 
 ---
 
-## 🛡️ Profil institutionnel défensif (branche de transformation)
+## 🛡️ Profil institutionnel défensif
 
-La branche `defensive-institutional-pivot` fait évoluer AfricaWatch vers une plateforme défensive institutionnelle. Les évaluations réseau actives sont **désactivées par défaut** par le paramètre serveur `ACTIVE_ASSESSMENTS_ENABLED=False`. L'API et le worker Celery appliquent tous deux cette politique. Le chemin privilégié est l'import de rapports d'outils tiers, leur normalisation, leur rattachement aux actifs autorisés et leur corrélation avec la Threat Intelligence. N'activez pas les évaluations actives en production ; toute activation expérimentale doit rester explicite et confinée à un laboratoire isolé.
+La transformation défensive institutionnelle a été fusionnée dans `main` au commit `0dba01a293e3e1abc0900be6d8238d08a1f381c9`. Les évaluations réseau actives sont **désactivées par défaut** par le paramètre serveur `ACTIVE_ASSESSMENTS_ENABLED=False`. L'API et le worker Celery appliquent tous deux cette politique. Le chemin privilégié est l'import de rapports d'outils tiers, leur normalisation, leur rattachement aux actifs autorisés et leur corrélation avec la Threat Intelligence. N'activez pas les évaluations actives en production ; toute activation expérimentale doit rester explicite et confinée à un laboratoire isolé.
 
 La cartographie de l'existant, les écarts documentés/non démontrés et la feuille de route se trouvent dans [`docs/DEFENSIVE_TRANSFORMATION_AUDIT.md`](docs/DEFENSIVE_TRANSFORMATION_AUDIT.md). Les éléments présents dans le code ne sont pas automatiquement considérés comme validés en production : les tests d'intégration, l'isolation des workers et les contrôles de séparation des tenants restent des critères de livraison.
 
@@ -88,9 +88,7 @@ La cartographie de l'existant, les écarts documentés/non démontrés et la feu
 
 Le projet démarre désormais en **mode LITE** pour une machine de 8 Go de RAM : PostgreSQL, Redis, API, Celery et frontend. Elasticsearch, Kafka, Kibana et le monitoring lourd sont optionnels (`make lab`). L’IA locale est optionnelle (`make ai`) et peut utiliser un petit modèle Ollama ; le code conserve un fallback déterministe lorsqu’elle est désactivée.
 
-**Offensive Lab** ajoute une couche d’évaluation active sous contrôle : un opérateur crée un engagement, indique une référence d’autorisation, associe des actifs existants, active une fenêtre temporelle et lance uniquement des profils de reconnaissance/configuration prédéfinis. Les commandes sont construites côté serveur ; il n’existe pas d’exécution shell arbitraire depuis l’API. Les cibles privées/réservées restent bloquées sauf `LAB_MODE=True` dans un environnement isolé.
-
-Profils disponibles : `dns_recon`, `dns_posture`, `web_recon`, `web_posture`, `tls_audit`, `port_recon`, `exposure_audit`, `adversary_recon`, `exposure_chain`, `nuclei_safe`, `combined_recon`. Le Lab ajoute un préflight d’engagement, une analyse de chaîne d’exposition, une estimation de visibilité SOC et une comparaison avec l’assessment précédent. Chaque job produit un condensat SHA-256 de son résultat et participe à une chaîne d’événements vérifiable.
+Le module historique `Offensive Lab` reste dans le dépôt, mais les évaluations actives sont **désactivées par défaut** par `ACTIVE_ASSESSMENTS_ENABLED=False`. La politique est vérifiée à la frontière API et dans les workers Celery. La page de navigation principale privilégie l'import de rapports. N'activez le runner historique qu'en laboratoire isolé, pour un périmètre explicitement autorisé, et après validation des contrôles.
 
 
 ## 🛰️ Intelligence Center v6
@@ -155,8 +153,8 @@ curl "http://localhost:8000/api/v1/iocs/lookup/?value=197.234.45.123" \
 - JWT avec rotation automatique des tokens
 - MFA TOTP pour les admins
 - RBAC : SuperAdmin → OrgAdmin → Analyst → ThreatHunter → Viewer
-- Audit log immuable de toutes les actions
-- TLP (Traffic Light Protocol) appliqué sur toutes les données
+- Journal d’audit applicatif; l’immutabilité et l’ancrage externe des journaux restent à valider en déploiement
+- Prise en charge de champs TLP; l’application systématique des règles de partage doit être validée par flux
 - Rate limiting API + protection anti-brute force (Axes)
 - LLM local Ollama — aucune donnée ne quitte l'infrastructure
 
@@ -164,54 +162,24 @@ curl "http://localhost:8000/api/v1/iocs/lookup/?value=197.234.45.123" \
 
 ## 📜 Licence
 
-AGPL v3 — Libre pour usage non-commercial et institutionnel.
-Déploiements gratuits pour CERTs africains et universités.
+GPL v2 (voir `LICENSE`) — licence libre à copyleft; l’usage commercial est permis sous réserve du respect des conditions de la licence.
+Les déploiements pour CERTs africains et universités peuvent suivre les modalités du projet.
 
 **Construit en Afrique. Pour l'Afrique. Et le monde.**
 
-## Offensive Lab — mode d'assessment contrôlé
+## Offensive Lab — état de disponibilité
 
-Le module `offensive_lab` sert à orchestrer des évaluations de sécurité **autorisées** sur des actifs préalablement enregistrés dans l'organisation. Il ne fournit pas d'exécution de commandes arbitraires, d'exploitation, de vol d'identifiants, de persistance ou de mouvement latéral. Les profils actifs sont volontairement conçus pour de la reconnaissance et de la validation de surface.
-
-### Profils disponibles
-
-- `dns_recon` : A/AAAA/MX/NS/TXT/CNAME + résolution contrôlée.
-- `web_recon` : HTTP, en-têtes de sécurité, bannière serveur, titre HTML et indices technologiques.
-- `tls_audit` : protocole, chiffrement, certificat, expiration et détection de protocoles anciens.
-- `port_recon` : Nmap `-sT -sV --version-light --top-ports 100`, sans scripts NSE et sans options d'évasion.
-- `exposure_audit` : corrélation web + ports + règles de surface d'exposition.
-- `nuclei_safe` : adaptateur optionnel Nuclei limité à `info/low/medium` avec tags d'exposition/misconfiguration/TLS/technologie et exclusions des catégories intrusives/exploitatives.
-- `combined_recon` : chaîne DNS + Web + TLS + ports.
-
-### Garde-fous
-
-Une mission doit avoir une référence d'autorisation, une fenêtre temporelle, au moins une cible enregistrée et une approbation humaine. Toute modification du périmètre invalide l'approbation et force une nouvelle validation. Chaque job enregistre le hash du périmètre au lancement, un nonce d'exécution, le hash du résultat et une chaîne d'événements SHA-256 vérifiable.
-
-Les URL et cibles sont soumises à une validation anti-SSRF. Les cibles privées/réservées restent bloquées par défaut et ne deviennent disponibles qu'en `LAB_MODE=True` côté serveur **et** sur un engagement marqué `lab_mode=True`.
-
-Le `SECURITY_ASSESSMENT_KILL_SWITCH=True` bloque immédiatement les nouveaux scans sans arrêter la plateforme.
-
-### Threat-informed red team
-
-Le raisonnement « attaquant » est simulé par l'analyse des points d'entrée, des services exposés, des contrôles Web/DNS, des changements de surface et des lacunes de télémétrie. Le système ne fournit pas de mécanisme d'exploitation, de credential attack, de persistance, de mouvement latéral ou d'évasion.
-
-Les endpoints utiles sont : `GET /api/v1/engagements/{id}/preflight/`, `GET /api/v1/engagements/{id}/adversary_plan/`, `GET /api/v1/assessment-jobs/{id}/report/`, `GET /api/v1/assessment-jobs/{id}/attack_path/` et `GET /api/v1/assessment-jobs/{id}/integrity/`.
-
-### Architecture 8 Go
-
-Le mode LITE est recommandé sur les postes disposant de 8 Go de RAM : PostgreSQL + Redis + API + Celery + frontend. Elasticsearch, Kafka, Kibana, Prometheus et Grafana restent derrière le profil `lab`. Ollama est séparé derrière le profil `ai` et limité à un modèle chargé et une exécution parallèle.
+Le code historique d’évaluation active reste présent pour préserver les artefacts et tests du projet, mais les tâches et lancements d’assessment sont **désactivés par défaut côté serveur**. Une interface ou un endpoint qui existe dans le dépôt ne constitue pas une autorisation de production. Avant toute expérimentation, il faut activer explicitement la politique uniquement dans un laboratoire isolé, documenter l’autorisation et tester le kill-switch, le contrôle de cible et l’isolation réseau. Pour l'usage institutionnel courant, privilégiez l'import de rapports hors ligne via `/report-ingestion`.
 
 ## Security Lab — application, DB et outillage
 
-La V5 ajoute un espace `Security Lab` qui complète l'Offensive Lab sans transformer l'API en moteur d'exploitation autonome.
+La V5 ajoute un espace `Security Lab` pour les contrôles défensifs. Les capacités réellement disponibles doivent être distinguées des plans et des outils simplement détectés.
 
-- OWASP Top 10:2025 / API Security Top 10:2023 / WSTG / ASVS 5.0.0
-- audit Web et OpenAPI, avec contrôles de configuration et d'authentification déclarative
-- audit PostgreSQL en lecture seule, avec DSN isolés par organisation
+- OWASP/API et contrôles de configuration déclaratifs
+- audit PostgreSQL en lecture seule, avec périmètre organisationnel
 - SAST/SCA local via Semgrep/Trivy et audit de secrets via Gitleaks
-- OWASP ZAP Baseline en plan DAST non intrusif
-- John the Ripper en audit de hashes strictement hors-ligne et opt-in
-- Hashcat en outil de station dédiée, non lancé par l'API
-- Hydra et sqlmap en mode readiness/plan seulement
+- OWASP ZAP Baseline en mode non intrusif lorsqu'il est configuré
+- audit de politique de format de hash hors ligne : métadonnées/formats uniquement, sans craquage de mots de passe ni vérification d'identifiants
+- Hydra/sqlmap : planification ou vérification de disponibilité uniquement; aucune exécution ne doit être lancée depuis l’API
 
-Les profils réseau utilisent toujours le périmètre d'engagement, le kill-switch, les limites de concurrence et les contrôles SSRF existants.
+Les affirmations de disponibilité des outils doivent être confirmées par les tests et la configuration du déploiement.
