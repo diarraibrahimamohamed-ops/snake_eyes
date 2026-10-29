@@ -11,7 +11,7 @@ AfricaWatch est une plateforme de cybersécurité organisée autour du suivi des
 
 > **État du dépôt :** la branche principale intègre les premières tranches de transformation défensive et de durcissement multi-tenant. Le code, les tests CI et la documentation ne constituent pas à eux seuls une certification de sécurité ni une autorisation de mise en production.
 
-Dernière base vérifiée : \`main\` — commit \`c1943ba0687252d07954e05ad748a47451bc0c95\` (29 octobre 2026).
+Dernière base vérifiée : `main` — commit `c1943ba0687252d07954e05ad748a47451bc0c95` (29 octobre 2026).
 
 ---
 
@@ -71,7 +71,7 @@ Les contrôles des permissions et les tests disponibles doivent encore être com
 
 ### Évaluations actives désactivées par défaut
 
-Le code historique de l'Offensive Lab et certaines tâches de scan restent dans le dépôt. Le paramètre serveur \`ACTIVE_ASSESSMENTS_ENABLED=False\` désactive par défaut les évaluations actives à la frontière API et dans les workers Celery. L'exécutable Nmap a été retiré de l'image Docker de l'API.
+Le code historique de l'Offensive Lab et certaines tâches de scan restent dans le dépôt. Le paramètre serveur `ACTIVE_ASSESSMENTS_ENABLED=False` désactive par défaut les évaluations actives à la frontière API et dans les workers Celery. L'exécutable Nmap a été retiré de l'image Docker de l'API.
 
 Cette politique par défaut ne remplace pas une suppression du code historique ni une validation complète des chemins d'exécution. **Ne réactivez pas les évaluations actives en production.** Toute expérimentation doit se dérouler dans un laboratoire isolé, sur un périmètre explicitement autorisé, après vérification des garde-fous et du mécanisme d'arrêt.
 
@@ -92,7 +92,7 @@ Ces protections couvrent les chemins implémentés et testés, mais ne sont pas 
 
 ## Architecture
 
-\`\`\`text
+```text
 snake_eyes/
 ├── apps/
 │   ├── api/                    # Django REST Framework, règles métier et workers Celery
@@ -111,7 +111,7 @@ snake_eyes/
 ├── .env.example
 ├── Makefile
 └── docs/DEFENSIVE_TRANSFORMATION_AUDIT.md
-\`\`\`
+```
 
 ### Stack technique
 
@@ -123,25 +123,25 @@ snake_eyes/
 
 ## Démarrage local
 
-Le Compose standard est orienté développement. Il définit des valeurs de démonstration dans \`.env.example\` : il faut les remplacer avant toute utilisation avec des données réelles.
+Le Compose standard est orienté développement. Il définit des valeurs de démonstration dans `.env.example` : il faut les remplacer avant toute utilisation avec des données réelles.
 
 ### 1. Cloner et configurer l'environnement
 
-\`\`\`bash
+```bash
 git clone https://github.com/diarraibrahamohamed-ops/snake_eyes.git
 cd snake_eyes
 cp .env.example .env
-\`\`\`
+```
 
-Avant de démarrer, éditez \`.env\` et configurez au minimum un secret Django fort et unique, les mots de passe PostgreSQL/Redis, les hôtes autorisés et les origines CORS adaptées à votre poste. Gardez \`DEBUG=True\` uniquement pour le développement local. Ne commitez jamais le fichier \`.env\`.
+Avant de démarrer, éditez `.env` et configurez au minimum un secret Django fort et unique, les mots de passe PostgreSQL/Redis, les hôtes autorisés et les origines CORS adaptées à votre poste. Gardez `DEBUG=True` uniquement pour le développement local. Ne commitez jamais le fichier `.env`.
 
 ### 2. Démarrer les services de base
 
-\`\`\`bash
+```bash
 make up
 make migrate
 make createsuperuser
-\`\`\`
+```
 
 Accès local :
 
@@ -157,28 +157,28 @@ Les ports de l'API, du frontend, de PostgreSQL et de Redis sont liés à l'inter
 
 ### Profils optionnels
 
-\`\`\`bash
+```bash
 make lab       # Elasticsearch, Kafka et outils de monitoring
 make ai        # Ollama local (ressources supplémentaires requises)
 make intel     # Service Tor optionnel, pour la collecte passive configurée
 make security  # Scanner malware optionnel
 make down      # Arrêter la stack
-\`\`\`
+```
 
 Ces profils augmentent la consommation de ressources et peuvent nécessiter des réglages supplémentaires. Les activer ne signifie pas que tous les connecteurs sont configurés.
 
 ### Commandes utiles
 
-\`\`\`bash
+```bash
 make logs
 make shell
 make test
 make lint
 make typecheck
 make backup
-\`\`\`
+```
 
-Le contrôle CI est ciblé sur la syntaxe Python, les noms non définis et certains contrôles Ruff sur les modules concernés. La commande locale \`make lint\` exécute un contrôle plus large qui peut révéler une dette de style préexistante ; le résultat du CI ciblé ne doit pas être interprété comme une remise à zéro de toute cette dette.
+Le contrôle CI est ciblé sur la syntaxe Python, les noms non définis et certains contrôles Ruff sur les modules concernés. La commande locale `make lint` exécute un contrôle plus large qui peut révéler une dette de style préexistante ; le résultat du CI ciblé ne doit pas être interprété comme une remise à zéro de toute cette dette.
 
 ## API et import de rapports
 
@@ -186,50 +186,50 @@ Le contrôle CI est ciblé sur la syntaxe Python, les noms non définis et certa
 
 L'API utilise un jeton JWT. Après avoir créé votre compte administrateur local, récupérez un jeton avec vos propres identifiants :
 
-\`\`\`bash
+```bash
 TOKEN=$(curl -sS -X POST http://localhost:8000/api/v1/auth/token/ \
   -H "Content-Type: application/json" \
   -d '{"email":"VOTRE_EMAIL","password":"VOTRE_MOT_DE_PASSE"}' \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['access'])")
-\`\`\`
+```
 
 Exemples de lecture :
 
-\`\`\`bash
+```bash
 curl "http://localhost:8000/api/v1/iocs/?is_african_threat=true&severity=critical" \
   -H "Authorization: Bearer $TOKEN"
 
 curl "http://localhost:8000/api/v1/dashboard/stats/" \
   -H "Authorization: Bearer $TOKEN"
-\`\`\`
+```
 
 ### Importer un rapport de scan existant
 
 L'exemple suivant importe un rapport Nuclei JSONL. Utilisez un fichier généré précédemment par un outil autorisé :
 
-\`\`\`bash
+```bash
 curl -X POST "http://localhost:8000/api/v1/report-ingestions/upload/" \
   -H "Authorization: Bearer $TOKEN" \
   -F "source_type=nuclei_jsonl" \
   -F "file=@nuclei-report.jsonl"
-\`\`\`
+```
 
-Autres valeurs possibles pour \`source_type\` : \`nmap_xml\`, \`nuclei_json\`, \`nessus_xml\`, \`shodan_json\` et \`shodan_csv\`.
+Autres valeurs possibles pour `source_type` : `nmap_xml`, `nuclei_json`, `nessus_xml`, `shodan_json` et `shodan_csv`.
 
 Routes associées :
 
 | Méthode | Route | Objet |
 |---|---|---|
-| POST | \`/api/v1/report-ingestions/upload/\` | Importer le rapport |
-| GET | \`/api/v1/report-ingestions/\` | Lister les imports visibles par le compte |
-| GET | \`/api/v1/report-ingestions/{id}/\` | Consulter le statut et les métadonnées d'un import |
-| GET | \`/api/v1/report-findings/?report={id}\` | Consulter les constats normalisés d'un rapport |
+| POST | `/api/v1/report-ingestions/upload/` | Importer le rapport |
+| GET | `/api/v1/report-ingestions/` | Lister les imports visibles par le compte |
+| GET | `/api/v1/report-ingestions/{id}/` | Consulter le statut et les métadonnées d'un import |
+| GET | `/api/v1/report-findings/?report={id}` | Consulter les constats normalisés d'un rapport |
 
 L'import nécessite un utilisateur authentifié ayant un rôle opérationnel autorisé et rattaché à une organisation. Un administrateur global sans organisation doit préciser l'organisation cible conformément à l'API. Les fichiers importés sont limités à 10 Mio et traités de façon asynchrone.
 
 ## Sécurité et modèle multi-tenant
 
-Le projet définit les rôles \`viewer\`, \`analyst\`, \`threat_hunter\`, \`org_admin\` et \`super_admin\`. Les autorisations dépendent de l'action et du module : une lecture, une modification d'actif, une acceptation de risque et une modification de données Threat Intelligence partagées n'ont pas les mêmes exigences.
+Le projet définit les rôles `viewer`, `analyst`, `threat_hunter`, `org_admin` et `super_admin`. Les autorisations dépendent de l'action et du module : une lecture, une modification d'actif, une acceptation de risque et une modification de données Threat Intelligence partagées n'ont pas les mêmes exigences.
 
 Principes implémentés dans les chemins couverts par les contrôles et tests :
 
@@ -252,7 +252,7 @@ Le moteur d'IA local utilise Ollama lorsque cette intégration est activée et c
 
 ## Tests et qualité
 
-Le workflow \`.github/workflows/defensive-ci.yml\` est déclenché sur les pull requests vers \`main\`. Il exécute :
+Le workflow `.github/workflows/defensive-ci.yml` est déclenché sur les pull requests vers `main`. Il exécute :
 
 - tests Django/API avec PostgreSQL et Redis ;
 - vérifications syntaxiques Python et contrôles Ruff ciblés ;
