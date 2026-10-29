@@ -1,185 +1,272 @@
-# 🛡️ AfricaWatch
-### Plateforme Africaine de Cybersécurité, Threat Intelligence & OSINT
+# AfricaWatch
 
-[![License: GPL v2](https://img.shields.io/badge/License-GPL_v2-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/Python-3.12-blue)](https://python.org)
-[![Django](https://img.shields.io/badge/Django-5.2-green)](https://djangoproject.com)
-[![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org)
+### Plateforme défensive de cybersécurité, Threat Intelligence, OSINT et réponse SOC
 
-> *La première plateforme de cybersécurité souveraine conçue pour et par l'Afrique.*
+[![Licence : GPL v2](https://img.shields.io/badge/License-GPL_v2-blue.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.12-blue)](https://www.python.org/)
+[![Django](https://img.shields.io/badge/Django-5.2-green)](https://www.djangoproject.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-14-black)](https://nextjs.org/)
+
+AfricaWatch est une plateforme de cybersécurité organisée autour du suivi des actifs, de la Threat Intelligence, de la collecte OSINT, de la gestion des alertes et incidents, de la gestion des vulnérabilités et de l'analyse défensive. Le dépôt contient une API Django/DRF, une interface Next.js et des services asynchrones Celery.
+
+> **État du dépôt :** la branche principale intègre les premières tranches de transformation défensive et de durcissement multi-tenant. Le code, les tests CI et la documentation ne constituent pas à eux seuls une certification de sécurité ni une autorisation de mise en production.
+
+Dernière base vérifiée : `main` — commit `c1943ba0687252d07954e05ad748a47451bc0c95` (29 octobre 2026).
 
 ---
 
-## 🚀 Démarrage en 3 commandes
+## Sommaire
 
-```bash
-git clone https://github.com/YOUR_ORG/africanwatch.git
-cd africanwatch
-make up
-```
+- [Fonctionnalités](#fonctionnalités)
+- [État fonctionnel et limites](#état-fonctionnel-et-limites)
+- [Architecture](#architecture)
+- [Démarrage local](#démarrage-local)
+- [API et import de rapports](#api-et-import-de-rapports)
+- [Sécurité et modèle multi-tenant](#sécurité-et-modèle-multi-tenant)
+- [Tests et qualité](#tests-et-qualité)
+- [Licence](#licence)
 
-Après ~2 minutes :
+## Fonctionnalités
 
-| Service | URL |
+| Domaine | Ce que contient le dépôt |
 |---|---|
-| 🖥️ Dashboard | http://localhost:3000 |
-| 🔌 API REST | http://localhost:8000 |
-| 📚 API Docs | http://localhost:8000/api/docs/ |
-| ❤️ Health | http://localhost:8000/health/ |
-| 📊 Kibana | http://localhost:5601 |
-| 📈 Grafana | http://localhost:3001 |
+| Organisations et actifs | Comptes, organisations, rôles, inventaire d'actifs et journaux d'audit |
+| Threat Intelligence | Indicateurs de compromission (IOC), flux, acteurs et campagnes, avec filtrage selon le niveau TLP sur les chemins couverts |
+| SOC | Alertes, incidents, chronologie d'incident, règles de détection et notifications temps réel |
+| Gestion des vulnérabilités | Vulnérabilités, suivi de statut et éléments de preuve importés depuis des rapports tiers |
+| Import de rapports | Import borné, traitement asynchrone, normalisation des constats et rattachement contrôlé aux actifs existants |
+| OSINT | Sources et événements provenant de sources configurées, avec traitement et analyse des données |
+| AI Engine | Extraction d'IOC, résumé d'incident et signaux de tendance ; l'usage d'un modèle local est optionnel |
+| Intelligence Center | Collecte et enrichissement à partir de sources configurées, avec provenance et métadonnées de partage |
+| Malware & Code Lab | Voie d'analyse de fichiers avec quarantaine et moteurs disponibles selon la configuration |
+| Interface Web | Tableau de bord, modules de renseignement, SOC, inventaire et vulnérabilités dans l'application Next.js |
 
-**Environnement de démo :** configurez vos propres identifiants via `.env`. Aucun mot de passe de démonstration n’est destiné à la production.
+La présence d'un module ou d'un connecteur dans le dépôt ne signifie pas que toutes ses intégrations sont configurées, validées ou prêtes pour un service institutionnel.
 
----
+## État fonctionnel et limites
 
-## 🏗️ Architecture
+### Import défensif de rapports
 
-```
-africanwatch/
+Le parcours privilégié pour intégrer des résultats de scanners consiste à **importer et analyser des rapports déjà produits**, sans lancer automatiquement un scan réseau depuis le processus d'importation.
+
+Formats pris en charge par le parseur :
+
+- Nmap XML
+- Nuclei JSON et JSONL
+- Nessus XML
+- Shodan JSON et CSV
+
+Limites et contrôles implémentés :
+
+- taille maximale d'un rapport : **10 Mio** ;
+- plafond de traitement : **20 000 constats par rapport** ;
+- empreinte SHA-256 conservée pour vérifier l'intégrité et détecter les doublons au sein d'une organisation ;
+- rejet des déclarations DTD/entités dans les rapports Nessus ;
+- traitement asynchrone par Celery ; les rapports importés sont traités comme des données, pas comme des commandes ;
+- association d'un constat uniquement à un actif existant correspondant dans la même organisation ;
+- absence de création automatique d'actifs à partir de noms d'hôtes fournis dans un rapport ;
+- constats non associés conservés pour revue, plutôt que rattachés arbitrairement à un actif.
+
+Les contrôles des permissions et les tests disponibles doivent encore être complétés par des essais d'acceptation en staging portant notamment sur le stockage des fichiers, la rétention et les droits d'accès effectifs.
+
+### Évaluations actives désactivées par défaut
+
+Le code historique de l'Offensive Lab et certaines tâches de scan restent dans le dépôt. Le paramètre serveur `ACTIVE_ASSESSMENTS_ENABLED=False` désactive par défaut les évaluations actives à la frontière API et dans les workers Celery. L'exécutable Nmap a été retiré de l'image Docker de l'API.
+
+Cette politique par défaut ne remplace pas une suppression du code historique ni une validation complète des chemins d'exécution. **Ne réactivez pas les évaluations actives en production.** Toute expérimentation doit se dérouler dans un laboratoire isolé, sur un périmètre explicitement autorisé, après vérification des garde-fous et du mécanisme d'arrêt.
+
+### Sécurité multi-tenant
+
+Les dernières modifications ont renforcé les contrôles sur les organisations, actifs, alertes et incidents SOC, les accès aux constats d'importation, les écritures de Threat Intelligence partagée, certains chemins secondaires et les agrégats du tableau de bord. Les collections protégées doivent se fermer par défaut pour un compte sans organisation ; les données Threat Intelligence filtrées par TLP ne doivent pas réapparaître dans les compteurs, statistiques ou chronologies correspondants.
+
+Ces protections couvrent les chemins implémentés et testés, mais ne sont pas une preuve exhaustive de l'absence de défaut de contrôle d'accès dans toutes les routes, tâches, WebSockets et intégrations. Une campagne de tests d'acceptation multi-organisations reste nécessaire.
+
+### Capacités qui ne sont pas certifiées comme prêtes pour la production
+
+- orchestration SOAR complète avec playbooks versionnés, approbations, compensations et journal de preuves validé ;
+- partage inter-CERT de production avec cycle complet d'authentification partenaire, gouvernance, révocation et validation des accords de partage ;
+- isolation opérationnelle démontrée de tous les workers et connecteurs sortants ;
+- contrôles d'accès au stockage des rapports, politique de rétention, sauvegarde et restauration éprouvées en environnement cible ;
+- preuve de l'intégrité des journaux avec ancrage externe protégé ;
+- validation de performance, gestion des incidents et procédures opérationnelles d'un déploiement institutionnel.
+
+## Architecture
+
+```text
+snake_eyes/
 ├── apps/
-│   ├── api/                    # Backend Django 5
-│   │   └── africanwatch/
-│   │       ├── apps/
-│   │       │   ├── organizations/  # Users, Orgs, Assets, Audit
-│   │       │   ├── threat_intel/   # IOCs, Feeds, Actors, Campaigns
-│   │       │   ├── soc/            # Alerts, Incidents, Rules
-│   │       │   ├── osint/          # Sources, Events, NLP
-│   │       │   ├── vulns/          # Vulnerabilities, Scans
-│   │       │   ├── ai_engine/      # Analysis, Summarization, Prediction
-│   │       │   └── dashboard/      # Stats, Maps, Metrics
-│   │       ├── consumers.py        # WebSocket temps réel
-│   │       └── celery.py           # Tâches planifiées
-│   └── web/                    # Frontend Next.js 14
-│       └── src/
-│           ├── app/            # Pages (dashboard, IOCs, SOC, OSINT, Vulns...)
-│           ├── components/     # ThreatMap, widgets, Sidebar
-│           ├── lib/            # API client, stores Zustand
-│           └── hooks/          # WebSocket hook
-├── infra/docker/               # Nginx, Postgres, Prometheus, Grafana, TheHive
+│   ├── api/                    # Django REST Framework, règles métier et workers Celery
+│   │   └── africanwatch/apps/
+│   │       ├── organizations/  # Comptes, organisations, actifs et audit
+│   │       ├── threat_intel/   # IOC, flux, acteurs et campagnes
+│   │       ├── soc/            # Alertes, incidents et règles
+│   │       ├── osint/          # Sources et événements OSINT
+│   │       ├── vulns/          # Vulnérabilités et import de rapports
+│   │       ├── ai_engine/      # Analyse, résumé et tendances
+│   │       └── dashboard/      # Statistiques et visualisations
+│   └── web/                    # Frontend Next.js
+├── infra/                      # Configuration d'infrastructure et du scanner
+├── security-lab/               # Répertoires locaux de quarantaine/outils
 ├── docker-compose.yml
-└── Makefile
+├── .env.example
+├── Makefile
+└── docs/DEFENSIVE_TRANSFORMATION_AUDIT.md
 ```
 
----
+### Stack technique
 
-## 🧩 Modules
+- **API :** Python 3.12, Django 5.2, Django REST Framework
+- **Frontend :** Next.js 14, React et TypeScript
+- **Données et tâches :** PostgreSQL, Redis, Celery et Celery Beat
+- **Qualité :** pytest/pytest-django, Ruff, ESLint, TypeScript, build Next.js et scan Trivy via GitHub Actions
+- **Composants optionnels :** Elasticsearch/Kibana, Kafka, Prometheus/Grafana, Ollama, Tor et scanner malware selon le profil Docker activé
 
-| Module | Description |
+## Démarrage local
+
+Le Compose standard est orienté développement. Il définit des valeurs de démonstration dans `.env.example` : il faut les remplacer avant toute utilisation avec des données réelles.
+
+### 1. Cloner et configurer l'environnement
+
+```bash
+git clone https://github.com/diarraibrahamohamed-ops/snake_eyes.git
+cd snake_eyes
+cp .env.example .env
+```
+
+Avant de démarrer, éditez `.env` et configurez au minimum un secret Django fort et unique, les mots de passe PostgreSQL/Redis, les hôtes autorisés et les origines CORS adaptées à votre poste. Gardez `DEBUG=True` uniquement pour le développement local. Ne commitez jamais le fichier `.env`.
+
+### 2. Démarrer les services de base
+
+```bash
+make up
+make migrate
+make createsuperuser
+```
+
+Accès local :
+
+| Service | Adresse locale |
 |---|---|
-| 🦠 **Threat Intelligence** | IOCs, Flux (MISP/OTX/STIX/TAXII), Campagnes, Acteurs |
-| 🌐 **OSINT Engine** | News africaines, Telegram, RSS, GitHub, NLP multilingue |
-| 🔴 **SOC Center** | Alertes WebSocket, Incidents, Règles Sigma/YARA |
-| 🔍 **Vulnerability Mgmt** | Scan Nuclei/Nmap, CVSS, Remédiation |
-| 🤖 **AI Engine** | Extraction IOCs, Résumés LLM local, Signaux de tendance |
-| 🌍 **African Context** | Score menace africain, BGP, Mobile Money, langues locales |
-| 🛰️ **Intelligence Center v6** | Reconnaissance passive, RDAP/DNS/CT, GDELT, sources Web/Social publiques, Onion allowlisté, provenance et corrélation |
-| 🧪 **Malware & Code Lab v6** | Quarantaine, SHA-256, ClamAV, YARA, SAST, limites anti-archive-bomb, scanner isolé |
+| Interface Web | http://localhost:3000 |
+| API REST | http://localhost:8000 |
+| Documentation API | http://localhost:8000/api/docs/ |
+| Schéma OpenAPI | http://localhost:8000/api/schema/ |
+| Santé de l'application | http://localhost:8000/health/ |
 
----
+Les ports de l'API, du frontend, de PostgreSQL et de Redis sont liés à l'interface locale dans le Compose principal. N'exposez pas ces services sur un réseau public sans une configuration de production adaptée.
 
-## 🛡️ Profil institutionnel défensif
-
-La transformation défensive institutionnelle a été fusionnée dans `main` au commit `0dba01a293e3e1abc0900be6d8238d08a1f381c9`. Les évaluations réseau actives sont **désactivées par défaut** par le paramètre serveur `ACTIVE_ASSESSMENTS_ENABLED=False`. L'API et le worker Celery appliquent tous deux cette politique. Le chemin privilégié est l'import de rapports d'outils tiers, leur normalisation, leur rattachement aux actifs autorisés et leur corrélation avec la Threat Intelligence. N'activez pas les évaluations actives en production ; toute activation expérimentale doit rester explicite et confinée à un laboratoire isolé.
-
-La cartographie de l'existant, les écarts documentés/non démontrés et la feuille de route se trouvent dans [`docs/DEFENSIVE_TRANSFORMATION_AUDIT.md`](docs/DEFENSIVE_TRANSFORMATION_AUDIT.md). Les éléments présents dans le code ne sont pas automatiquement considérés comme validés en production : les tests d'intégration, l'isolation des workers et les contrôles de séparation des tenants restent des critères de livraison.
-
-## 🧭 Mode LITE et Offensive Lab
-
-Le projet démarre désormais en **mode LITE** pour une machine de 8 Go de RAM : PostgreSQL, Redis, API, Celery et frontend. Elasticsearch, Kafka, Kibana et le monitoring lourd sont optionnels (`make lab`). L’IA locale est optionnelle (`make ai`) et peut utiliser un petit modèle Ollama ; le code conserve un fallback déterministe lorsqu’elle est désactivée.
-
-Le module historique `Offensive Lab` reste dans le dépôt, mais les évaluations actives sont **désactivées par défaut** par `ACTIVE_ASSESSMENTS_ENABLED=False`. La politique est vérifiée à la frontière API et dans les workers Celery. La page de navigation principale privilégie l'import de rapports. N'activez le runner historique qu'en laboratoire isolé, pour un périmètre explicitement autorisé, et après validation des contrôles.
-
-
-## 🛰️ Intelligence Center v6
-
-Le nouveau centre de renseignement sépare clairement la collecte passive de l'assessment actif. Il enrichit les domaines et IP par DNS/RDAP/Certificate Transparency, collecte des contenus publics, accepte des sources Web/Social publiques sous forme d'URL modèle `{target}`, et fournit une voie Onion via Tor avec allowlist. Chaque observation est hashée et enrichie d'une provenance, d'une note de fiabilité, d'une confiance, d'une actionnabilité, d'une corroboration et d'un TLP.
-
-Les contenus multilingues sont triés en français, anglais, arabe, haoussa, fulfulde et bambara. Les signaux d'influence nuisible sont traités comme des indicateurs de triage et ne servent pas à profiler ou persuader politiquement des personnes.
-
-## 🧪 Malware & Code Lab v6
-
-Les fichiers entrants sont placés dans une quarantaine propre au tenant. Le moteur calcule le SHA-256, refuse les fichiers trop gros ou les archives potentiellement explosives, puis lance les moteurs disponibles : ClamAV, YARA et SAST. Les fichiers soumis ne sont jamais exécutés par le système. Le scanner optionnel tourne sans réseau, sans privilèges et en lecture seule sur la quarantaine.
-
-## 🕵️ Collecte discrète — limite technique
-
-La confidentialité de la collecte est une propriété différente de l'effacement de traces. AfricaWatch n'essaie pas de supprimer ou contourner les journaux d'une infrastructure distante. Tor est limité à la collecte passive de sources Onion autorisées ; les scans actifs restent dans l'Offensive Lab avec scope, autorisation, audit et kill-switch.
-
-## 🛠️ Commandes
+### Profils optionnels
 
 ```bash
-make up              # Démarrer le mode LITE
-make lab             # Activer Elastic/Kafka/monitoring
-make ai              # Activer Ollama optionnel
-make down            # Arrêter
-make logs            # Logs temps réel
-make shell           # Shell Django
-make migrate         # Migrations
-make seed            # Données de démo
-make bootstrap-feeds # Flux TI publics
-make test            # Tests
-make lint            # Linter
-make backup          # Sauvegarde DB
+make lab       # Elasticsearch, Kafka et outils de monitoring
+make ai        # Ollama local (ressources supplémentaires requises)
+make intel     # Service Tor optionnel, pour la collecte passive configurée
+make security  # Scanner malware optionnel
+make down      # Arrêter la stack
 ```
 
----
+Ces profils augmentent la consommation de ressources et peuvent nécessiter des réglages supplémentaires. Les activer ne signifie pas que tous les connecteurs sont configurés.
 
-## 🔑 API Quick Start
+### Commandes utiles
 
 ```bash
-# Utilisez les identifiants que vous avez définis dans .env
-TOKEN=$(curl -s -X POST http://localhost:8000/api/v1/auth/token/ \
+make logs
+make shell
+make test
+make lint
+make typecheck
+make backup
+```
+
+Le contrôle CI est ciblé sur la syntaxe Python, les noms non définis et certains contrôles Ruff sur les modules concernés. La commande locale `make lint` exécute un contrôle plus large qui peut révéler une dette de style préexistante ; le résultat du CI ciblé ne doit pas être interprété comme une remise à zéro de toute cette dette.
+
+## API et import de rapports
+
+### Authentification
+
+L'API utilise un jeton JWT. Après avoir créé votre compte administrateur local, récupérez un jeton avec vos propres identifiants :
+
+```bash
+TOKEN=$(curl -sS -X POST http://localhost:8000/api/v1/auth/token/ \
   -H "Content-Type: application/json" \
   -d '{"email":"VOTRE_EMAIL","password":"VOTRE_MOT_DE_PASSE"}' \
   | python3 -c "import sys,json; print(json.load(sys.stdin)['access'])")
+```
 
-# IOCs africains critiques
+Exemples de lecture :
+
+```bash
 curl "http://localhost:8000/api/v1/iocs/?is_african_threat=true&severity=critical" \
   -H "Authorization: Bearer $TOKEN"
 
-# Stats dashboard
 curl "http://localhost:8000/api/v1/dashboard/stats/" \
-  -H "Authorization: Bearer $TOKEN"
-
-# Lookup d'un IOC
-curl "http://localhost:8000/api/v1/iocs/lookup/?value=197.234.45.123" \
   -H "Authorization: Bearer $TOKEN"
 ```
 
+### Importer un rapport de scan existant
+
+L'exemple suivant importe un rapport Nuclei JSONL. Utilisez un fichier généré précédemment par un outil autorisé :
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/report-ingestions/upload/" \
+  -H "Authorization: Bearer $TOKEN" \
+  -F "source_type=nuclei_jsonl" \
+  -F "file=@nuclei-report.jsonl"
+```
+
+Autres valeurs possibles pour `source_type` : `nmap_xml`, `nuclei_json`, `nessus_xml`, `shodan_json` et `shodan_csv`.
+
+Routes associées :
+
+| Méthode | Route | Objet |
+|---|---|---|
+| POST | `/api/v1/report-ingestions/upload/` | Importer le rapport |
+| GET | `/api/v1/report-ingestions/` | Lister les imports visibles par le compte |
+| GET | `/api/v1/report-ingestions/{id}/` | Consulter le statut et les métadonnées d'un import |
+| GET | `/api/v1/report-findings/?report={id}` | Consulter les constats normalisés d'un rapport |
+
+L'import nécessite un utilisateur authentifié ayant un rôle opérationnel autorisé et rattaché à une organisation. Un administrateur global sans organisation doit préciser l'organisation cible conformément à l'API. Les fichiers importés sont limités à 10 Mio et traités de façon asynchrone.
+
+## Sécurité et modèle multi-tenant
+
+Le projet définit les rôles `viewer`, `analyst`, `threat_hunter`, `org_admin` et `super_admin`. Les autorisations dépendent de l'action et du module : une lecture, une modification d'actif, une acceptation de risque et une modification de données Threat Intelligence partagées n'ont pas les mêmes exigences.
+
+Principes implémentés dans les chemins couverts par les contrôles et tests :
+
+- filtrage des ressources organisationnelles et fermeture par défaut des collections tenant-scoped pour les comptes sans organisation ;
+- vérification du rôle pour les actions sensibles de gestion des vulnérabilités, avec approbation du risque réservée aux administrateurs d'organisation ;
+- filtrage TLP de certains ensembles et agrégats de Threat Intelligence ;
+- clés de cache du tableau de bord séparées par organisation et niveau TLP ;
+- analyse hors ligne des rapports importés et vérification de leur empreinte SHA-256 ;
+- évaluations actives désactivées par défaut par la politique serveur.
+
+Points d'attention avant un déploiement réel :
+
+1. tester toutes les routes API, permissions objet, tâches Celery et groupes WebSocket avec plusieurs organisations et tous les rôles ;
+2. confirmer les ACL de stockage, le chiffrement, la rétention et la suppression des rapports ;
+3. vérifier l'isolation réseau, les privilèges et les limites de ressources des workers ;
+4. valider les configurations de production, TLS, secrets, sauvegarde/restauration et journaux d'audit ;
+5. examiner tous les connecteurs qui établissent des connexions sortantes, notamment les collecteurs OSINT et les flux de Threat Intelligence.
+
+Le moteur d'IA local utilise Ollama lorsque cette intégration est activée et configurée. Les connecteurs OSINT, Threat Intelligence et autres services optionnels peuvent effectuer des communications réseau : ne supposez pas que toutes les données restent locales simplement parce qu'un moteur LLM local est disponible.
+
+## Tests et qualité
+
+Le workflow `.github/workflows/defensive-ci.yml` est déclenché sur les pull requests vers `main`. Il exécute :
+
+- tests Django/API avec PostgreSQL et Redis ;
+- vérifications syntaxiques Python et contrôles Ruff ciblés ;
+- ESLint, TypeScript et build Next.js de production ;
+- analyse du dépôt avec Trivy pour les vulnérabilités HIGH et CRITICAL non ignorées comme non corrigibles.
+
+La dernière validation complète de la tranche de durcissement multi-tenant a passé les quatre jobs sur le commit testé avant sa fusion. Le résultat peut être consulté dans [GitHub Actions](https://github.com/diarraibrahamohamed-ops/snake_eyes/actions/runs/40800370761). Cette validation CI ne remplace pas une campagne d'acceptation sur l'environnement de staging cible.
+
+La feuille de route, les risques résiduels et les critères d'acceptation détaillés sont décrits dans [l'audit de transformation défensive](docs/DEFENSIVE_TRANSFORMATION_AUDIT.md).
+
+## Licence
+
+Ce dépôt contient le fichier de licence **GNU General Public License, version 2 (GPL-2.0)**. Consultez le fichier [LICENSE](LICENSE) pour les conditions de redistribution et de modification.
+
 ---
 
-## 🔐 Sécurité
-
-- JWT avec rotation automatique des tokens
-- MFA TOTP pour les admins
-- RBAC : SuperAdmin → OrgAdmin → Analyst → ThreatHunter → Viewer
-- Journal d’audit applicatif; l’immutabilité et l’ancrage externe des journaux restent à valider en déploiement
-- Prise en charge de champs TLP; l’application systématique des règles de partage doit être validée par flux
-- Rate limiting API + protection anti-brute force (Axes)
-- LLM local Ollama — aucune donnée ne quitte l'infrastructure
-
----
-
-## 📜 Licence
-
-GPL v2 (voir `LICENSE`) — licence libre à copyleft; l’usage commercial est permis sous réserve du respect des conditions de la licence.
-Les déploiements pour CERTs africains et universités peuvent suivre les modalités du projet.
-
-**Construit en Afrique. Pour l'Afrique. Et le monde.**
-
-## Offensive Lab — état de disponibilité
-
-Le code historique d’évaluation active reste présent pour préserver les artefacts et tests du projet, mais les tâches et lancements d’assessment sont **désactivés par défaut côté serveur**. Une interface ou un endpoint qui existe dans le dépôt ne constitue pas une autorisation de production. Avant toute expérimentation, il faut activer explicitement la politique uniquement dans un laboratoire isolé, documenter l’autorisation et tester le kill-switch, le contrôle de cible et l’isolation réseau. Pour l'usage institutionnel courant, privilégiez l'import de rapports hors ligne via `/report-ingestion`.
-
-## Security Lab — application, DB et outillage
-
-La V5 ajoute un espace `Security Lab` pour les contrôles défensifs. Les capacités réellement disponibles doivent être distinguées des plans et des outils simplement détectés.
-
-- OWASP/API et contrôles de configuration déclaratifs
-- audit PostgreSQL en lecture seule, avec périmètre organisationnel
-- SAST/SCA local via Semgrep/Trivy et audit de secrets via Gitleaks
-- OWASP ZAP Baseline en mode non intrusif lorsqu'il est configuré
-- audit de politique de format de hash hors ligne : métadonnées/formats uniquement, sans craquage de mots de passe ni vérification d'identifiants
-- Hydra/sqlmap : planification ou vérification de disponibilité uniquement; aucune exécution ne doit être lancée depuis l’API
-
-Les affirmations de disponibilité des outils doivent être confirmées par les tests et la configuration du déploiement.
+**AfricaWatch — conçu pour renforcer les capacités défensives de cybersécurité et de partage de renseignement, avec des limites explicites et des garanties vérifiables.**
