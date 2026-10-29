@@ -6,7 +6,7 @@ from rest_framework.test import APIClient
 
 from africanwatch.apps.organizations.models import Asset, AuditLog, Organization, User
 from africanwatch.apps.soc.models import Alert, Incident
-from africanwatch.apps.threat_intel.models import Campaign, IOC, ThreatFeed
+from africanwatch.apps.threat_intel.models import Campaign, IOC, ThreatActor, ThreatFeed
 
 
 def _items(response):
@@ -28,7 +28,7 @@ def _other_org():
     )
 
 
-def _ioc(value, tlp_level, org=None):
+def _ioc(value, tlp_level, org=None, feed=None):
     now = timezone.now()
     return IOC.objects.create(
         ioc_type=IOC.IOCType.IP,
@@ -38,6 +38,7 @@ def _ioc(value, tlp_level, org=None):
         confidence=80,
         tlp_level=tlp_level,
         source_organization=org,
+        feed=feed,
         first_seen=now,
         last_seen=now,
     )
@@ -147,8 +148,8 @@ def test_tlp_clearance_filters_iocs_feeds_and_campaigns(
 ):
     org.tlp_level = Organization.TLPLevel.GREEN
     org.save(update_fields=["tlp_level", "updated_at"])
-    _ioc("198.51.100.44", "white")
-    red_ioc = _ioc("198.51.100.45", "red")
+    white_ioc = _ioc("198.51.100.44", "white", feed=sample_feed)
+    red_ioc = _ioc("198.51.100.45", "red", feed=sample_feed)
     public_red_feed = ThreatFeed.objects.create(
         name="Restricted red feed",
         feed_type=ThreatFeed.FeedType.PLAINTEXT,
@@ -163,11 +164,12 @@ def test_tlp_clearance_filters_iocs_feeds_and_campaigns(
         is_public=False,
         tlp_level="white",
     )
+    actor = ThreatActor.objects.create(name="Shared actor for TLP regression")
     visible_campaign = Campaign.objects.create(
-        name="Visible campaign", description="TLP green", tlp_level="green"
+        name="Visible campaign", description="TLP green", tlp_level="green", threat_actor=actor
     )
     hidden_campaign = Campaign.objects.create(
-        name="Restricted campaign", description="TLP red", tlp_level="red"
+        name="Restricted campaign", description="TLP red", tlp_level="red", threat_actor=actor
     )
 
     response = api_client.get("/api/v1/iocs/")
@@ -188,6 +190,17 @@ def test_tlp_clearance_filters_iocs_feeds_and_campaigns(
     campaign_ids = {str(row["id"]) for row in _items(response)}
     assert str(visible_campaign.id) in campaign_ids
     assert str(hidden_campaign.id) not in campaign_ids
+
+    response = api_client.get(f"/api/v1/feeds/{sample_feed.id}/stats/")
+    assert response.status_code == 200
+    assert response.data["total_iocs"] == 1
+    assert str(white_ioc.id) != str(red_ioc.id)
+
+    response = api_client.get(f"/api/v1/threat-actors/{actor.id}/timeline/")
+    assert response.status_code == 200
+    timeline_ids = {str(row["id"]) for row in response.data}
+    assert str(visible_campaign.id) in timeline_ids
+    assert str(hidden_campaign.id) not in timeline_ids
 
 
 @pytest.mark.django_db
