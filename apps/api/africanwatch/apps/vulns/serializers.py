@@ -34,6 +34,24 @@ class VulnerabilitySerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Actif hors du périmètre de votre organisation.")
         return asset
 
+    def validate_status(self, value):
+        """Risk acceptance is an approval action, not a general analyst-editable field."""
+        if value != Vulnerability.Status.ACCEPTED:
+            return value
+
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        role = getattr(user, "role", "") if user and getattr(user, "is_authenticated", False) else ""
+        if not (
+            user
+            and getattr(user, "is_authenticated", False)
+            and (getattr(user, "is_superuser", False) or role in {"super_admin", "org_admin"})
+        ):
+            raise serializers.ValidationError(
+                "Seul un administrateur d'organisation peut accepter un risque."
+            )
+        return value
+
 
 class ScanJobSerializer(serializers.ModelSerializer):
     asset_name = serializers.CharField(source="asset.name", read_only=True)

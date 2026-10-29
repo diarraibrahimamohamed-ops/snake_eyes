@@ -161,7 +161,8 @@ def _parse_nmap(data):
 
 
 def _parse_nessus(data):
-    upper_prefix = data[:65536].upper()
+    # The full report is capped at 10 MiB by parse_report; inspect all of it.
+    upper_prefix = data.upper()
     if b"<!DOCTYPE" in upper_prefix or b"<!ENTITY" in upper_prefix:
         raise ReportParseError("DTD et entités XML ne sont pas autorisés.")
     try:

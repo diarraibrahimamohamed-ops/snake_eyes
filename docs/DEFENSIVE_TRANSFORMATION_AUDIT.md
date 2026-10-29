@@ -1,8 +1,9 @@
 # Defensive transformation audit — snake_eyes / AfricaWatch
 
-Date: 2026-10-28
-Branch: `defensive-institutional-pivot`
-Baseline: `main` at `5ccdc41c4ccdfa51da1b4c16c3e25bae6119b501`
+Date: 2026-10-29
+First implementation merged to `main`: `0dba01a293e3e1abc0900be6d8238d08a1f381c9` (PR #1)
+Hardening branch: `post-merge-hardening`
+Baseline for the first implementation slice: `5ccdc41c4ccdfa51da1b4c16c3e25bae6119b501`
 
 ## Executive decision
 
@@ -36,16 +37,16 @@ This document distinguishes **present in the repository**, **documented/claimed*
 | Threat intelligence / IOC collection | Models, collectors, services, tasks, tests, STIX export | Substantial code exists; production source reliability, sharing governance and TAXII serving remain to validate/build |
 | OSINT collection | App, models, views, tasks and UI | Code exists; each connector needs source-specific tests, legal review, rate limits and provenance checks |
 | Malware/code analysis | Scanner, tasks, models, views, tests, UI | Static analysis paths exist; never execute uploaded samples; verify scanner is truly network-isolated in deployment |
-| Vulnerability management | Models, views, tasks, UI and active assessment integration | CRUD/scan concepts exist; normalized ingestion for Nmap XML, Nuclei JSON, Nessus and Shodan export is not evidenced as a complete workflow |
-| Security Lab | OWASP, DB posture, SAST, Gitleaks, Trivy helpers, John path, Hydra/sqlmap plans | Mixed defensive and dual-use semantics; remove password-cracking execution from the product path and replace plans with policy/configuration checks |
-| Offensive Lab | Active runner, approved engagements, scan tasks and frontend | Guardrails exist but active scan initiation remains implemented; default-disabled now, later replace with report ingestion |
+| Vulnerability management | Models, views, tasks, UI, normalized report-ingestion endpoints and parser/task tests | The report-ingestion workflow is implemented in code; production storage isolation, full integration acceptance and role authorization still require verification |
+| Security Lab | OWASP/configuration checks, DB posture, SAST/SCA, Gitleaks, Trivy helpers and format-only hash-policy audit | Password cracking was removed from the normal application path; verify that no legacy endpoint can invoke it and keep Hydra/sqlmap as non-executing plans only |
+| Legacy assessment runner | Active runner and historical task code remain in the repository | Launch paths are disabled by default at API/worker boundaries; verify each legacy route/task and keep production deployments on the disabled policy |
 | SOAR | SOC entities and asynchronous task infrastructure | No complete playbook model/approval/execution/audit lifecycle evidenced |
 | Threat sharing across CERTs | STIX bundle export helper | Export helper exists; production TAXII server, partner auth, TLP enforcement, revocation and sharing agreements not evidenced |
 | Deception/canary tokens | No dedicated app/model/route found in tracked paths | Not implemented; proposed future module |
 | Threat hunting workbench | MITRE tactic/technique fields and alert search foundations | Data fields exist; dedicated temporal hunting/query UX and validated ATT&CK mapping are not demonstrated |
-| Hash policy auditing | Credential-related local tooling, but JtR path exists | Defensive policy auditor as described is not implemented |
+| Hash policy auditing | Bounded format-only policy checks | Code exists; validate the outputs and confirm it does not crack passwords, verify credentials, or expose hash values |
 | Lockout/MFA policy validation | Authentication stack and readiness plan | Dedicated safe policy validator is not demonstrated |
-| CI / reproducible quality gates | `.github/workflows/ci-cd.yml`, tests and Makefile | CI exists; historical review noted a missing migration, lint debt and failing workflow checks; rerun and fix on this branch |
+| CI / reproducible quality gates | `.github/workflows/defensive-ci.yml`, Django/API tests, frontend build, Trivy scan | The PR validation workflow passed on the tested pre-merge tree; this hardening branch must pass a fresh run, and staging/infrastructure checks remain separate |
 
 ## Institutional risks to resolve before deployment
 
@@ -57,7 +58,7 @@ This document distinguishes **present in the repository**, **documented/claimed*
 6. **Audit integrity**: a hash chain detects tampering only if the chain's head is anchored/protected independently. Document retention, access control, time synchronization and export verification.
 7. **AI claims**: label summaries as assistance and forecast scores as heuristics until a documented benchmark validates precision, recall, calibration and drift.
 8. **Institutional governance**: add data classification/TLP enforcement, retention/deletion policy, case evidence chain, approvals for response actions, incident runbooks, backup/restore drills and operational SLAs.
-9. **Supply chain**: reconcile the README AGPL badge with the actual LICENSE contents; generate an SBOM and dependency vulnerability report before releases.
+9. **Supply chain**: the README license badge and wording now match the repository's GPL v2 LICENSE; generate an SBOM and dependency vulnerability report for each release.
 10. **Deployment posture**: Compose includes development defaults and a development Django settings target. Production must use production settings, strong secrets, TLS, restricted service networking and managed credentials.
 
 ## Work completed in the first implementation slice
@@ -69,8 +70,9 @@ This document distinguishes **present in the repository**, **documented/claimed*
 - Replaced the John-the-Ripper execution path with a bounded hash-format policy audit. It reports format counts and legacy-format warnings only; it does not crack passwords, verify credentials, or return hash values. Removed offensive tools from the Security Lab's availability inventory.
 - Updated Security Lab UI language to reflect format-only auditing and updated the legacy assessment screen to disclose the disabled-by-default institutional policy.
 - Updated README positioning and added this audit/roadmap.
+- Aligned the README license badge and licensing description with the repository's GPL v2 `LICENSE` file.
 
-**Validation status:** source changes are committed on this branch, but the full Django/pytest suite, frontend build, and Docker integration tests have not yet been executed in this environment. These changes must be treated as an implementation in progress, not a production certification. The next step is to run CI and fix all regressions before extending the report-ingestion workflow.
+**Validation status:** this paragraph originally described the first draft before CI had run and is superseded by `Validation status after merge` below. The initial implementation is merged into `main`; current test results and remaining staging prerequisites are recorded in that later section. No production certification is implied.
 
 ## Ingestion Hub — first implementation slice
 
@@ -96,18 +98,25 @@ The branch now contains the initial Django API pipeline under the existing `vuln
 - CI's API lint job now passes with repository-wide syntax/undefined-name checks and a focused import check on defensive modules. Full repository Ruff style debt is not hidden; the CI workflow separates that pre-existing debt from checks for runtime-breaking syntax and undefined names.
 - The frontend ESLint configuration now explicitly registers the TypeScript ESLint plugin; the earlier run failed because the rule was configured but not registered.
 
-### Validation caveat and CI findings
+### Validation status after merge
 
-A draft pull request was opened to run GitHub Actions. The first CI execution exposed real baseline problems, so the branch is **not merge-ready**:
+The first defensive implementation slice was merged into `main` in commit
+`0dba01a293e3e1abc0900be6d8238d08a1f381c9` (PR #1). The PR's GitHub Actions run
+passed on the pre-merge tested tree; this is not a separate test run against the
+merge commit itself.
 
-- The API suite initially found a missing `organizations_user.avatar` migration; a corrective migration was added and aligned with the nullable model field.
-- The API suite also exposed nested IOC serializer validation using `self.initial_data` and partial updates of engagement targets requiring fields omitted from PATCH. Both paths were corrected. A Nessus parser severity mapping issue was corrected as well.
-- One earlier API test run passed before the dependency upgrades. The current dependency set must be verified by the newest CI run; a prior run exposed the Django 5.2 / django-celery-beat 2.6 incompatibility, which has since been addressed by upgrading django-celery-beat.
-- Ruff reported 299 repository-wide lint errors in the baseline. The focused API lint job now passes; repository-wide formatting/style debt remains unresolved and is not represented as fixed.
-- Trivy initially reported 52 HIGH/CRITICAL dependency findings. Upgrading Django, Pillow, Django REST Framework, cryptography, dnspython and lxml reduced the reported set to three HIGH findings in cryptography 46.0.5; cryptography was then upgraded to 50.0.0. The latest scan result is pending and must be checked.
-- The frontend CI configuration referenced a missing `apps/web/package-lock.json`; caching was removed and the workflow uses `npm ci` with an `npm install` fallback. The explicit TypeScript ESLint plugin registration is now included, but the newest lint/typecheck result must still be checked.
+The current `post-merge-hardening` branch adds role-aware permissions to the
+vulnerability API, restricts risk acceptance and deletion to organization
+administrators, and closes the Nessus XML DTD inspection-window gap. Regression
+tests and CI lint coverage are included for those changes; they must pass before
+this branch is merged.
 
-The parser and API/task regression tests have been added and are being exercised by CI, but this branch is **not production-certified**. Do not merge until the latest API run is reviewed, the repository-wide CI blockers are triaged, critical dependency vulnerabilities are remediated, and deployment isolation/storage policies have been validated.
+This repository is **not production-certified**. Staging still needs explicit
+acceptance of tenant/object-level permissions, upload storage ACLs and retention,
+worker isolation/no-network policy, backup/restore, audit evidence retention,
+resource-limit behavior, and all deployed settings. The baseline also has
+repository-wide Ruff style debt; CI currently gates global syntax/undefined names
+and targeted checks, not complete cleanup of all historical lint findings.
 
 ## Implementation plan
 

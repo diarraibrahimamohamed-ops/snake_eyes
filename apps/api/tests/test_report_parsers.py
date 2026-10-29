@@ -78,6 +78,19 @@ def test_xml_dtd_and_entities_are_rejected():
         parse_report("nmap_xml", raw)
 
 
+def test_nessus_dtd_after_long_prolog_comment_is_rejected():
+    # XML permits comments before the document type declaration. Keep the DTD
+    # beyond the old 64 KiB inspection window to prevent a regression.
+    long_comment = b"<!--" + (b"x" * (65 * 1024)) + b"-->"
+    raw = (
+        b"<?xml version='1.0'?>" + long_comment
+        + b'<!DOCTYPE NessusClientData_v2 [<!ENTITY x "expanded">]>'
+        + b"<NessusClientData_v2>&x;</NessusClientData_v2>"
+    )
+    with pytest.raises(ReportParseError, match="DTD"):
+        parse_report("nessus_xml", raw)
+
+
 def test_invalid_jsonl_fails_closed():
     with pytest.raises(ReportParseError, match="Ligne JSONL"):
         parse_report("nuclei_jsonl", b'{"info":{}}\nnot-json\n')
