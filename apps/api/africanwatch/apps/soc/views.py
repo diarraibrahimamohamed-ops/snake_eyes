@@ -1,7 +1,7 @@
 """AfricaWatch — SOC Views"""
 from django.db.models import Count
 from django.utils import timezone
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, permissions
 from rest_framework.permissions import SAFE_METHODS
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.decorators import action
