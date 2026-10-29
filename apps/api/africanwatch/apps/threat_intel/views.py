@@ -150,12 +150,14 @@ class ThreatFeedViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = super().get_queryset()
         user = self.request.user
-        if _is_global_admin(user):
-            return qs
         levels = _visible_tlp_levels(user)
         if not levels:
             return qs.none()
-        return qs.filter(is_public=True, tlp_level__in=levels)
+        if not _is_global_admin(user):
+            qs = qs.filter(is_public=True, tlp_level__in=levels)
+        return qs.annotate(
+            ioc_count=Count("iocs", filter=Q(iocs__tlp_level__in=levels), distinct=True)
+        )
 
     @action(detail=True, methods=["post"], url_path="fetch")
     def trigger_fetch(self, request, pk=None):
@@ -193,7 +195,9 @@ class IOCViewSet(viewsets.ModelViewSet):
         levels = _visible_tlp_levels(self.request.user)
         if not levels:
             return qs.none()
-        return qs.filter(tlp_level__in=levels)
+        return qs.filter(tlp_level__in=levels).annotate(
+            ioc_count=Count("iocs", filter=Q(iocs__tlp_level__in=levels), distinct=True)
+        )
 
     @action(detail=False, methods=["post"], url_path="bulk-import")
     def bulk_import(self, request):
@@ -274,6 +278,16 @@ class ThreatActorViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         return _write_permissions(self)
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        levels = _visible_tlp_levels(self.request.user)
+        if not levels:
+            return qs.none()
+        return qs.annotate(
+            ioc_count=Count("iocs", filter=Q(iocs__tlp_level__in=levels), distinct=True),
+            campaign_count=Count("campaigns", filter=Q(campaigns__tlp_level__in=levels), distinct=True),
+        )
 
     @action(detail=True, methods=["get"])
     def timeline(self, request, pk=None):
