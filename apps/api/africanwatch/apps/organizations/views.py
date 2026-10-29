@@ -5,7 +5,7 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
-from africanwatch.security.permissions import CanOperateSecurityAssessment, MinimumRole
+from africanwatch.security.permissions import CanOperateSecurityAssessment, MinimumRole, org_scope
 
 class OrgAdminRole(MinimumRole):
     minimum_role = "org_admin"
@@ -75,10 +75,7 @@ class AssetViewSet(viewsets.ModelViewSet):
     filterset_fields = ["asset_type","criticality","is_active","scan_enabled","organization"]
     search_fields = ["name","value","description"]
     def get_queryset(self):
-        qs = super().get_queryset(); u = self.request.user
-        if not u.is_superuser and getattr(u,"role","") != "super_admin":
-            if u.organization: qs = qs.filter(organization=u.organization)
-        return qs
+        return org_scope(super().get_queryset(), self.request.user, field="organization")
     @action(detail=True, methods=["post"], permission_classes=[CanOperateSecurityAssessment])
     def scan(self, request, pk=None):
         asset = self.get_object()
@@ -101,7 +98,4 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     search_fields = ["user__email","ip_address","action"]
     ordering = ["-timestamp"]
     def get_queryset(self):
-        qs = super().get_queryset(); u = self.request.user
-        if not u.is_superuser and getattr(u,"role","") != "super_admin":
-            if u.organization: qs = qs.filter(organization=u.organization)
-        return qs
+        return org_scope(super().get_queryset(), self.request.user, field="organization")
