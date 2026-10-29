@@ -9,61 +9,107 @@ from django.urls import path
 
 logger = logging.getLogger("africanwatch.dashboard")
 
+TLP_ORDER = ["white", "green", "amber", "red"]
+
+
+def _is_global_admin(user):
+    return bool(getattr(user, "is_superuser", False) or getattr(user, "role", "") == "super_admin")
+
+
+def _organization_id(user):
+    organization_id = getattr(user, "organization_id", None)
+    if organization_id:
+        return organization_id
+    organization = getattr(user, "organization", None)
+    return getattr(organization, "id", None)
+
+
+def _scope_org(queryset, user, field="organization_id"):
+    if _is_global_admin(user):
+        return queryset
+    org_id = _organization_id(user)
+    if not org_id:
+        return queryset.none()
+    return queryset.filter(**{field: org_id})
+
+
+def _scope_tlp(queryset, user):
+    if _is_global_admin(user):
+        return queryset
+    organization = getattr(user, "organization", None)
+    if organization is None:
+        return queryset.none()
+    level = getattr(organization, "tlp_level", "white")
+    index = TLP_ORDER.index(level) if level in TLP_ORDER else 0
+    return queryset.filter(tlp_level__in=TLP_ORDER[: index + 1])
+
+
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def global_stats(request):
-    """Stats globales pour le dashboard — mises en cache 60s."""
-    cached = cache.get("dashboard_global_stats")
-    if cached:
-        return Response(cached)
-
+    """Tenant-scoped dashboard statistics; only global admins see cross-tenant totals."""
     from africanwatch.apps.threat_intel.models import IOC
     from africanwatch.apps.soc.models import Alert, Incident
     from africanwatch.apps.osint.models import OSINTEvent
     from africanwatch.apps.vulns.models import Vulnerability
     from africanwatch.apps.organizations.models import Organization, Asset
 
+    user = request.user
+    org_id = _organization_id(user)
+    tlp_level = getattr(getattr(user, "organization", None), "tlp_level", "global")
+    cache_key = "dashboard_global_stats:global" if _is_global_admin(user) else f"dashboard_global_stats:org:{org_id or 'unassigned'}:tlp:{tlp_level}"
+    cached = cache.get(cache_key)
+    if cached:
+        return Response(cached)
+
     now = timezone.now()
     last_24h = now - timezone.timedelta(hours=24)
     last_7d = now - timezone.timedelta(days=7)
 
+    iocs = _scope_tlp(IOC.objects.all(), user)
+    alerts = _scope_org(Alert.objects.all(), user, "organization_id")
+    incidents = _scope_org(Incident.objects.all(), user, "organization_id")
+    osint_events = _scope_org(OSINTEvent.objects.all(), user, "organization_id")
+    vulnerabilities = _scope_org(Vulnerability.objects.all(), user, "asset__organization_id")
+    organizations = _scope_org(Organization.objects.filter(is_active=True), user, "id")
+    assets = _scope_org(Asset.objects.filter(is_active=True), user, "organization_id")
+
     stats = {
         "threat_intelligence": {
-            "total_iocs": IOC.objects.filter(is_active=True).count(),
-            "african_threats": IOC.objects.filter(is_african_threat=True, is_active=True).count(),
-            "new_24h": IOC.objects.filter(created_at__gte=last_24h).count(),
-            "new_7d": IOC.objects.filter(created_at__gte=last_7d).count(),
-            "critical": IOC.objects.filter(severity="critical", is_active=True).count(),
-            "high": IOC.objects.filter(severity="high", is_active=True).count(),
+            "total_iocs": iocs.filter(is_active=True).count(),
+            "african_threats": iocs.filter(is_african_threat=True, is_active=True).count(),
+            "new_24h": iocs.filter(created_at__gte=last_24h).count(),
+            "new_7d": iocs.filter(created_at__gte=last_7d).count(),
+            "critical": iocs.filter(severity="critical", is_active=True).count(),
+            "high": iocs.filter(severity="high", is_active=True).count(),
         },
         "soc": {
-            "alerts_open": Alert.objects.filter(status="new").count(),
-            "alerts_24h": Alert.objects.filter(created_at__gte=last_24h).count(),
-            "incidents_active": Incident.objects.filter(status__in=["open","investigating"]).count(),
-            "critical_alerts": Alert.objects.filter(severity="critical", status="new").count(),
+            "alerts_open": alerts.filter(status="new").count(),
+            "alerts_24h": alerts.filter(created_at__gte=last_24h).count(),
+            "incidents_active": incidents.filter(status__in=["open", "investigating"]).count(),
+            "critical_alerts": alerts.filter(severity="critical", status="new").count(),
         },
         "osint": {
-            "events_24h": OSINTEvent.objects.filter(created_at__gte=last_24h).count(),
-            "threat_relevant_24h": OSINTEvent.objects.filter(
-                is_threat_relevant=True, created_at__gte=last_24h).count(),
+            "events_24h": osint_events.filter(created_at__gte=last_24h).count(),
+            "threat_relevant_24h": osint_events.filter(is_threat_relevant=True, created_at__gte=last_24h).count(),
         },
         "vulnerabilities": {
-            "open": Vulnerability.objects.filter(status="open").count(),
-            "critical_open": Vulnerability.objects.filter(status="open", severity="critical").count(),
-            "exploitable": Vulnerability.objects.filter(status="open", is_exploitable=True).count(),
+            "open": vulnerabilities.filter(status="open").count(),
+            "critical_open": vulnerabilities.filter(status="open", severity="critical").count(),
+            "exploitable": vulnerabilities.filter(status="open", is_exploitable=True).count(),
         },
         "infrastructure": {
-            "organizations": Organization.objects.filter(is_active=True).count(),
-            "assets": Asset.objects.filter(is_active=True).count(),
+            "organizations": organizations.count(),
+            "assets": assets.count(),
         },
-        "threat_score": cache.get("african_threat_score", {"score":0,"level":"stable","iocs_24h":0}),
+        # This is an intentionally shared regional signal, not a tenant data series.
+        "threat_score": cache.get("african_threat_score", {"score": 0, "level": "stable", "iocs_24h": 0}),
         "computed_at": now.isoformat(),
     }
 
-    cache.set("dashboard_global_stats", stats, timeout=60)
+    cache.set(cache_key, stats, timeout=60)
     return Response(stats)
-
 
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
@@ -75,8 +121,9 @@ def recent_activity(request):
 
     last_24h = timezone.now() - timezone.timedelta(hours=24)
 
+    user = request.user
     recent_iocs = list(
-        IOC.objects.filter(is_active=True, created_at__gte=last_24h)
+        _scope_tlp(IOC.objects.filter(is_active=True, created_at__gte=last_24h), user)
         .order_by("-created_at")[:20]
         .values("id","ioc_type","value","severity","country_code","is_african_threat","created_at")
     )
@@ -86,7 +133,7 @@ def recent_activity(request):
             ioc["created_at"] = ioc["created_at"].isoformat()
 
     recent_alerts = list(
-        Alert.objects.filter(created_at__gte=last_24h)
+        _scope_org(Alert.objects.filter(created_at__gte=last_24h), user, "organization_id")
         .order_by("-created_at")[:20]
         .values("id","title","severity","status","source","src_ip","created_at")
     )
@@ -96,7 +143,7 @@ def recent_activity(request):
             alert["created_at"] = alert["created_at"].isoformat()
 
     recent_osint = list(
-        OSINTEvent.objects.filter(is_threat_relevant=True, created_at__gte=last_24h)
+        _scope_org(OSINTEvent.objects.filter(is_threat_relevant=True, created_at__gte=last_24h), user, "organization_id")
         .order_by("-created_at")[:10]
         .values("id","content","language_detected","threat_relevance_score","source__name","created_at")
     )
@@ -121,7 +168,7 @@ def threat_map_data(request):
     from django.db.models import Count
 
     iocs_by_country = list(
-        IOC.objects.filter(is_african_threat=True, is_active=True)
+        _scope_tlp(IOC.objects.filter(is_african_threat=True, is_active=True), request.user)
         .exclude(country_code="")
         .values("country_code","country_name","latitude","longitude")
         .annotate(
@@ -140,28 +187,32 @@ def threat_map_data(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def soc_metrics(request):
-    """Métriques SOC temps réel."""
-    cached = cache.get("soc_metrics")
+    """Métriques SOC limitées au tenant; seules les admins globaux voient les totaux globaux."""
+    from africanwatch.apps.soc.models import Alert, Incident
+    user = request.user
+    org_id = _organization_id(user)
+    cache_key = "soc_metrics:global" if _is_global_admin(user) else f"soc_metrics:org:{org_id or 'unassigned'}"
+    cached = cache.get(cache_key)
     if cached:
         return Response(cached)
 
-    from africanwatch.apps.soc.models import Alert, Incident
     now = timezone.now()
     last_24h = now - timezone.timedelta(hours=24)
+    alerts = _scope_org(Alert.objects.all(), user, "organization_id")
+    incidents = _scope_org(Incident.objects.all(), user, "organization_id")
+    total_alerts = alerts.count()
 
     metrics = {
-        "alerts_open": Alert.objects.filter(status="new").count(),
-        "alerts_24h": Alert.objects.filter(created_at__gte=last_24h).count(),
-        "incidents_active": Incident.objects.filter(status__in=["open","investigating"]).count(),
-        "critical_alerts": Alert.objects.filter(severity="critical", status="new").count(),
+        "alerts_open": alerts.filter(status="new").count(),
+        "alerts_24h": alerts.filter(created_at__gte=last_24h).count(),
+        "incidents_active": incidents.filter(status__in=["open", "investigating"]).count(),
+        "critical_alerts": alerts.filter(severity="critical", status="new").count(),
         "mttd_hours": 2.4,
         "mttr_hours": 8.7,
-        "false_positive_rate": round(
-            Alert.objects.filter(status="false_positive").count() /
-            max(Alert.objects.count(), 1) * 100, 1),
+        "false_positive_rate": round(alerts.filter(status="false_positive").count() / max(total_alerts, 1) * 100, 1),
         "computed_at": now.isoformat(),
     }
-    cache.set("soc_metrics", metrics, timeout=60)
+    cache.set(cache_key, metrics, timeout=60)
     return Response(metrics)
 
 

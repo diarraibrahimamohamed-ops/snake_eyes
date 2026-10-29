@@ -3,9 +3,39 @@ from django.db.models import Count, Q
 from django.utils import timezone
 from django_filters import rest_framework as filters
 from rest_framework import permissions, serializers, viewsets
+from rest_framework.permissions import SAFE_METHODS
+from africanwatch.security.permissions import MinimumRole
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from africanwatch.apps.threat_intel.models import Campaign, IOC, ThreatActor, ThreatFeed
+
+
+TLP_ORDER = ["white", "green", "amber", "red"]
+
+
+def _is_global_admin(user):
+    return bool(getattr(user, "is_superuser", False) or getattr(user, "role", "") == "super_admin")
+
+
+def _visible_tlp_levels(user):
+    organization = getattr(user, "organization", None)
+    if _is_global_admin(user):
+        return TLP_ORDER
+    if organization is None:
+        return []
+    level = getattr(organization, "tlp_level", "white")
+    index = TLP_ORDER.index(level) if level in TLP_ORDER else 0
+    return TLP_ORDER[: index + 1]
+
+
+class GlobalThreatAdmin(MinimumRole):
+    minimum_role = "super_admin"
+
+
+def _write_permissions(view):
+    if view.request.method not in SAFE_METHODS:
+        return [GlobalThreatAdmin()]
+    return [permissions.IsAuthenticated()]
 
 
 # ─── SERIALIZERS ─────────────────────────────────────────────────────────────
@@ -110,8 +140,22 @@ class ThreatFeedViewSet(viewsets.ModelViewSet):
     serializer_class = ThreatFeedSerializer
     permission_classes = [permissions.IsAuthenticated]
     filterset_fields = ["feed_type","is_public","is_african_specific","status"]
+
+    def get_permissions(self):
+        # Feeds trigger outbound HTTP from a worker. Treat feed management and fetch as global-admin operations.
+        return _write_permissions(self)
     search_fields = ["name","description","url"]
     ordering_fields = ["name","last_fetched_at","total_iocs_imported"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if _is_global_admin(user):
+            return qs
+        levels = _visible_tlp_levels(user)
+        if not levels:
+            return qs.none()
+        return qs.filter(is_public=True, tlp_level__in=levels)
 
     @action(detail=True, methods=["post"], url_path="fetch")
     def trigger_fetch(self, request, pk=None):
@@ -140,14 +184,16 @@ class IOCViewSet(viewsets.ModelViewSet):
     ordering_fields = ["created_at","last_seen","severity","confidence","hit_count"]
     ordering = ["-last_seen"]
 
+    def get_permissions(self):
+        # IOC writes are global/shared and can affect TI seen by multiple tenants.
+        return _write_permissions(self)
+
     def get_queryset(self):
         qs = super().get_queryset()
-        user = self.request.user
-        if user.organization:
-            tlp_order = ["white","green","amber","red"]
-            idx = tlp_order.index(user.organization.tlp_level)
-            qs = qs.filter(tlp_level__in=tlp_order[:idx+1])
-        return qs
+        levels = _visible_tlp_levels(self.request.user)
+        if not levels:
+            return qs.none()
+        return qs.filter(tlp_level__in=levels)
 
     @action(detail=False, methods=["post"], url_path="bulk-import")
     def bulk_import(self, request):
@@ -226,6 +272,9 @@ class ThreatActorViewSet(viewsets.ModelViewSet):
     search_fields = ["name","description"]
     ordering_fields = ["last_activity","name"]
 
+    def get_permissions(self):
+        return _write_permissions(self)
+
     @action(detail=True, methods=["get"])
     def timeline(self, request, pk=None):
         actor = self.get_object()
@@ -240,3 +289,13 @@ class CampaignViewSet(viewsets.ModelViewSet):
     filterset_fields = ["severity","is_ongoing","tlp_level"]
     search_fields = ["name","description"]
     ordering_fields = ["start_date","name","severity"]
+
+    def get_permissions(self):
+        return _write_permissions(self)
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        levels = _visible_tlp_levels(self.request.user)
+        if not levels:
+            return qs.none()
+        return qs.filter(tlp_level__in=levels)
