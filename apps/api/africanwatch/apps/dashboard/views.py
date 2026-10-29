@@ -57,7 +57,8 @@ def global_stats(request):
 
     user = request.user
     org_id = _organization_id(user)
-    cache_key = "dashboard_global_stats:global" if _is_global_admin(user) else f"dashboard_global_stats:org:{org_id or 'unassigned'}"
+    tlp_level = getattr(getattr(user, "organization", None), "tlp_level", "global")
+    cache_key = "dashboard_global_stats:global" if _is_global_admin(user) else f"dashboard_global_stats:org:{org_id or 'unassigned'}:tlp:{tlp_level}"
     cached = cache.get(cache_key)
     if cached:
         return Response(cached)
