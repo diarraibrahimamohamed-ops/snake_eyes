@@ -8,6 +8,24 @@ from rest_framework.response import Response
 from africanwatch.apps.threat_intel.models import Campaign, IOC, ThreatActor, ThreatFeed
 
 
+TLP_ORDER = ["white", "green", "amber", "red"]
+
+
+def _is_global_admin(user):
+    return bool(getattr(user, "is_superuser", False) or getattr(user, "role", "") == "super_admin")
+
+
+def _visible_tlp_levels(user):
+    organization = getattr(user, "organization", None)
+    if _is_global_admin(user):
+        return TLP_ORDER
+    if organization is None:
+        return []
+    level = getattr(organization, "tlp_level", "white")
+    index = TLP_ORDER.index(level) if level in TLP_ORDER else 0
+    return TLP_ORDER[: index + 1]
+
+
 # ─── SERIALIZERS ─────────────────────────────────────────────────────────────
 
 class ThreatFeedSerializer(serializers.ModelSerializer):
@@ -113,6 +131,16 @@ class ThreatFeedViewSet(viewsets.ModelViewSet):
     search_fields = ["name","description","url"]
     ordering_fields = ["name","last_fetched_at","total_iocs_imported"]
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if _is_global_admin(user):
+            return qs
+        levels = _visible_tlp_levels(user)
+        if not levels:
+            return qs.none()
+        return qs.filter(is_public=True, tlp_level__in=levels)
+
     @action(detail=True, methods=["post"], url_path="fetch")
     def trigger_fetch(self, request, pk=None):
         from africanwatch.apps.threat_intel.tasks import fetch_feed
@@ -142,12 +170,10 @@ class IOCViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        user = self.request.user
-        if user.organization:
-            tlp_order = ["white","green","amber","red"]
-            idx = tlp_order.index(user.organization.tlp_level)
-            qs = qs.filter(tlp_level__in=tlp_order[:idx+1])
-        return qs
+        levels = _visible_tlp_levels(self.request.user)
+        if not levels:
+            return qs.none()
+        return qs.filter(tlp_level__in=levels)
 
     @action(detail=False, methods=["post"], url_path="bulk-import")
     def bulk_import(self, request):
@@ -240,3 +266,10 @@ class CampaignViewSet(viewsets.ModelViewSet):
     filterset_fields = ["severity","is_ongoing","tlp_level"]
     search_fields = ["name","description"]
     ordering_fields = ["start_date","name","severity"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        levels = _visible_tlp_levels(self.request.user)
+        if not levels:
+            return qs.none()
+        return qs.filter(tlp_level__in=levels)
