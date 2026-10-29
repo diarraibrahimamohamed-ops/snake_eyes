@@ -167,7 +167,7 @@ class ThreatFeedViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get"])
     def stats(self, request, pk=None):
         feed = self.get_object()
-        iocs = feed.iocs.all()
+        iocs = feed.iocs.filter(tlp_level__in=_visible_tlp_levels(request.user))
         return Response({"total_iocs":iocs.count(),"active_iocs":iocs.filter(is_active=True).count(),
             "african_threats":iocs.filter(is_african_threat=True).count(),
             "by_severity":list(iocs.values("severity").annotate(count=Count("id"))),
@@ -278,7 +278,8 @@ class ThreatActorViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get"])
     def timeline(self, request, pk=None):
         actor = self.get_object()
-        return Response(list(actor.campaigns.order_by("start_date").values(
+        campaigns = actor.campaigns.filter(tlp_level__in=_visible_tlp_levels(request.user))
+        return Response(list(campaigns.order_by("start_date").values(
             "id","name","start_date","end_date","is_ongoing","severity")))
 
 
