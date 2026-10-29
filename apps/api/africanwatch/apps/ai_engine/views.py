@@ -40,15 +40,19 @@ def summarize_incident(request):
     incident_id = request.data.get("incident_id")
     if not incident_id:
         return Response({"error": "incident_id requis"}, status=400)
+    from africanwatch.apps.soc.models import Incident
     try:
-        from africanwatch.apps.soc.models import Incident
         incident = Incident.objects.get(id=incident_id)
-        if incident.organization and request.user.organization:
-            if str(incident.organization.id) != str(request.user.organization.id):
-                if not request.user.is_superuser:
-                    return Response({"error": "Accès non autorisé"}, status=403)
-    except Exception:
+    except (Incident.DoesNotExist, ValueError, TypeError):
         return Response({"error": "Incident introuvable"}, status=404)
+
+    user = request.user
+    is_global_admin = bool(getattr(user, "is_superuser", False) or getattr(user, "role", "") == "super_admin")
+    if not is_global_admin:
+        organization_id = getattr(user, "organization_id", None)
+        if not organization_id or incident.organization_id != organization_id:
+            # 404 avoids disclosing whether a cross-tenant incident exists.
+            return Response({"error": "Incident introuvable"}, status=404)
 
     summary = _generate_summary(incident)
     return Response({"summary": summary, "incident_id": str(incident_id)})
@@ -64,11 +68,13 @@ def threat_prediction(request):
     from collections import Counter
     from africanwatch.apps.threat_intel.models import IOC
     from africanwatch.apps.intelligence.models import ThreatForecast, IntelligenceObservation
-    org_id = getattr(getattr(request, "user", None), "organization_id", None)
+    user = request.user
+    org_id = getattr(user, "organization_id", None)
+    is_global_admin = bool(getattr(user, "is_superuser", False) or getattr(user, "role", "") == "super_admin")
     last_7d = timezone.now() - timedelta(days=7)
     base = IOC.objects.filter(created_at__gte=last_7d, is_active=True)
-    if org_id:
-        base = base.filter(source_organization_id=org_id)
+    if not is_global_admin:
+        base = base.filter(source_organization_id=org_id) if org_id else base.none()
     trending = list(base.exclude(malware_families=[]).values("malware_families").annotate(count=Count("id")).order_by("-count")[:8])
     obs_qs = IntelligenceObservation.objects.filter(organization_id=org_id, retrieved_at__gte=last_7d) if org_id else IntelligenceObservation.objects.none()
     signals = Counter()
