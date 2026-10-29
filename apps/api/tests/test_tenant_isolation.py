@@ -380,3 +380,55 @@ def test_global_application_admin_can_manage_assets_across_organizations(api_cli
     )
     assert response.status_code == 201, response.data
     assert str(response.data["organization"]) == str(target_org.id)
+
+    now = timezone.now().isoformat()
+    response = api_client.post(
+        "/api/v1/iocs/",
+        {
+            "ioc_type": "domain",
+            "value": "global-threat.example.test",
+            "severity": "high",
+            "confidence": 90,
+            "tlp_level": "white",
+            "first_seen": now,
+            "last_seen": now,
+        },
+        format="json",
+    )
+    assert response.status_code == 201, response.data
+    ioc_id = response.data["id"]
+
+    response = api_client.post(f"/api/v1/iocs/{ioc_id}/false-positive/", {}, format="json")
+    assert response.status_code == 200, response.data
+
+    response = api_client.post(
+        "/api/v1/iocs/bulk-import/",
+        {
+            "iocs": [
+                {
+                    "ioc_type": "ip",
+                    "value": "198.51.100.99",
+                    "severity": "medium",
+                    "confidence": 50,
+                    "first_seen": now,
+                    "last_seen": now,
+                }
+            ]
+        },
+        format="json",
+    )
+    assert response.status_code == 201, response.data
+
+    response = api_client.post(
+        "/api/v1/feeds/",
+        {
+            "name": "Global admin test feed",
+            "feed_type": "plaintext",
+            "url": "https://feeds.example.test/global.txt",
+            "is_public": True,
+            "is_african_specific": False,
+            "tlp_level": "white",
+        },
+        format="json",
+    )
+    assert response.status_code == 201, response.data
