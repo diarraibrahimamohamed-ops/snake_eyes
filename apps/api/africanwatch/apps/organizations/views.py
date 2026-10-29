@@ -10,6 +10,10 @@ from africanwatch.security.permissions import CanOperateSecurityAssessment, Mini
 class OrgAdminRole(MinimumRole):
     minimum_role = "org_admin"
 
+
+class SuperAdminRole(MinimumRole):
+    minimum_role = "super_admin"
+
 from africanwatch.apps.organizations.models import Organization, User, Asset, AuditLog
 from africanwatch.apps.organizations.serializers import OrganizationSerializer, UserSerializer, UserCreateSerializer, AssetSerializer, AuditLogSerializer, AWTokenObtainPairSerializer
 
@@ -33,6 +37,12 @@ class OrganizationViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     filterset_fields = ["org_type","country","tier","is_active"]
     search_fields = ["name","country_name","contact_email"]
+
+    def get_permissions(self):
+        if self.action in {"create", "update", "partial_update", "destroy"}:
+            return [SuperAdminRole()]
+        return super().get_permissions()
+
     def get_queryset(self):
         qs = super().get_queryset(); u = self.request.user
         if not u.is_superuser and getattr(u,"role","") != "super_admin":
@@ -74,6 +84,14 @@ class AssetViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     filterset_fields = ["asset_type","criticality","is_active","scan_enabled","organization"]
     search_fields = ["name","value","description"]
+
+    def get_permissions(self):
+        if self.action in {"create", "update", "partial_update"}:
+            return [CanOperateSecurityAssessment()]
+        if self.action == "destroy":
+            return [OrgAdminRole()]
+        return super().get_permissions()
+
     def get_queryset(self):
         return org_scope(super().get_queryset(), self.request.user, field="organization")
     @action(detail=True, methods=["post"], permission_classes=[CanOperateSecurityAssessment])
