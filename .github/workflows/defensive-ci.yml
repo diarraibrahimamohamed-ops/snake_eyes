@@ -43,6 +43,7 @@ jobs:
           tests/test_report_parsers.py
           tests/test_report_ingestion.py
           tests/test_vulnerability_permissions.py
+          africanwatch/apps/vulns/serializers.py
           tests/test_security_lab.py
           tests/test_adversary_analysis.py
           --select F401,F821,E999
