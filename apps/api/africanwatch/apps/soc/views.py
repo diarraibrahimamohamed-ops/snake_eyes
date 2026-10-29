@@ -6,6 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from africanwatch.apps.soc.models import Alert, Incident, IncidentTimeline, DetectionRule
 from africanwatch.apps.soc.serializers import AlertSerializer, IncidentSerializer, IncidentTimelineSerializer, DetectionRuleSerializer
+from africanwatch.security.permissions import org_scope
 
 
 class DetectionRuleViewSet(viewsets.ModelViewSet):
@@ -27,12 +28,7 @@ class AlertViewSet(viewsets.ModelViewSet):
     ordering = ["-created_at"]
 
     def get_queryset(self):
-        qs = super().get_queryset()
-        u = self.request.user
-        if not u.is_superuser and getattr(u, "role", "") != "super_admin":
-            if u.organization:
-                qs = qs.filter(organization=u.organization)
-        return qs
+        return org_scope(super().get_queryset(), self.request.user, field="organization")
 
     @action(detail=True, methods=["post"])
     def acknowledge(self, request, pk=None):
@@ -115,12 +111,7 @@ class IncidentViewSet(viewsets.ModelViewSet):
     ordering = ["-detected_at"]
 
     def get_queryset(self):
-        qs = super().get_queryset()
-        u = self.request.user
-        if not u.is_superuser and getattr(u, "role", "") != "super_admin":
-            if u.organization:
-                qs = qs.filter(organization=u.organization)
-        return qs
+        return org_scope(super().get_queryset(), self.request.user, field="organization")
 
     def perform_create(self, serializer):
         incident = serializer.save()
