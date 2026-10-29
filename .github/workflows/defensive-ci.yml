@@ -33,6 +33,7 @@ jobs:
           africanwatch/apps/vulns/serializers.py
           africanwatch/apps/vulns/views.py
           africanwatch/apps/organizations/views.py
+          africanwatch/apps/organizations/serializers.py
           africanwatch/apps/soc/views.py
           africanwatch/apps/ai_engine/views.py
           africanwatch/security/permissions.py
