@@ -2,6 +2,7 @@
 import pytest
 from django.core.cache import cache
 from django.utils import timezone
+from rest_framework.test import APIClient
 
 from africanwatch.apps.organizations.models import Asset, AuditLog, Organization, User
 from africanwatch.apps.soc.models import Alert, Incident
@@ -81,6 +82,7 @@ def test_user_without_organization_sees_no_tenant_owned_collections(
         "/api/v1/iocs/",
         "/api/v1/feeds/",
         "/api/v1/campaigns/",
+        "/api/v1/threat-actors/",
     ):
         response = api_client.get(endpoint)
         assert response.status_code == 200, (endpoint, response.data)
@@ -213,15 +215,17 @@ def test_tlp_clearance_filters_iocs_feeds_and_campaigns(
 
 
 @pytest.mark.django_db
-def test_tenant_admin_cannot_mutate_shared_threat_intelligence_or_organizations(api_client):
+def test_tenant_admin_cannot_mutate_shared_threat_intelligence_or_organizations(api_client, sample_feed):
     responses = [
         api_client.post("/api/v1/feeds/", {}, format="json"),
         api_client.post("/api/v1/iocs/", {}, format="json"),
         api_client.post("/api/v1/threat-actors/", {}, format="json"),
         api_client.post("/api/v1/campaigns/", {}, format="json"),
         api_client.post("/api/v1/organizations/", {}, format="json"),
+        api_client.post("/api/v1/detection-rules/", {}, format="json"),
+        api_client.post(f"/api/v1/feeds/{sample_feed.id}/fetch/", {}, format="json"),
     ]
-    assert [response.status_code for response in responses] == [403, 403, 403, 403, 403]
+    assert [response.status_code for response in responses] == [403, 403, 403, 403, 403, 403, 403]
 
 
 @pytest.mark.django_db
@@ -274,6 +278,13 @@ def test_dashboard_metrics_and_cache_are_organization_scoped(api_client, org, sa
         severity=Alert.Severity.CRITICAL,
         source=Alert.Source.MANUAL,
     )
+    Alert.objects.create(
+        organization=other_org,
+        title="Other tenant second alert",
+        description="Must not affect this tenant's dashboard",
+        severity=Alert.Severity.HIGH,
+        source=Alert.Source.MANUAL,
+    )
     cache.clear()
 
     response = api_client.get("/api/v1/dashboard/stats/")
@@ -283,8 +294,32 @@ def test_dashboard_metrics_and_cache_are_organization_scoped(api_client, org, sa
 
     response = api_client.get("/api/v1/dashboard/activity/")
     assert response.status_code == 200
-    assert all(row.get("title") != "Other tenant alert" for row in response.data["alerts"])
+    assert all(row.get("title") not in {"Other tenant alert", "Other tenant second alert"} for row in response.data["alerts"])
 
+    response = api_client.get("/api/v1/dashboard/soc-metrics/")
+    assert response.status_code == 200
+    assert response.data["alerts_open"] == 1
+
+    other_admin = User.objects.create_user(
+        email="other-dashboard-admin@example.test",
+        password="TestPassword@123!",
+        first_name="Other",
+        last_name="Admin",
+        organization=other_org,
+        role=User.Role.ORG_ADMIN,
+    )
+    other_client = APIClient()
+    other_client.force_authenticate(user=other_admin)
+    response = other_client.get("/api/v1/dashboard/stats/")
+    assert response.status_code == 200
+    assert response.data["soc"]["alerts_open"] == 2
+    assert response.data["infrastructure"]["organizations"] == 1
+
+    response = other_client.get("/api/v1/dashboard/soc-metrics/")
+    assert response.status_code == 200
+    assert response.data["alerts_open"] == 2
+
+    # The first tenant's cached aggregate must remain isolated.
     response = api_client.get("/api/v1/dashboard/soc-metrics/")
     assert response.status_code == 200
     assert response.data["alerts_open"] == 1
