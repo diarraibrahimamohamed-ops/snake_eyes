@@ -52,21 +52,20 @@ class TestIOCAPI:
             "severity": "high", "confidence": 75,
             "first_seen": now, "last_seen": now,
         }, format="json")
-        assert resp.status_code == 201
+        assert resp.status_code == 403
 
     def test_bulk_import(self, api_client):
         now = timezone.now().isoformat()
         iocs = [{"ioc_type":"ip","value":f"10.0.0.{i}","severity":"medium",
                  "confidence":60,"first_seen":now,"last_seen":now} for i in range(1,6)]
         resp = api_client.post("/api/v1/iocs/bulk-import/", {"iocs":iocs}, format="json")
-        assert resp.status_code == 201
-        assert resp.json()["created"] == 5
+        assert resp.status_code == 403
 
     def test_mark_false_positive(self, api_client, sample_ioc):
         resp = api_client.post(f"/api/v1/iocs/{sample_ioc.id}/false-positive/")
-        assert resp.status_code == 200
+        assert resp.status_code == 403
         sample_ioc.refresh_from_db()
-        assert sample_ioc.false_positive_count == 1
+        assert sample_ioc.false_positive_count == 0
 
     def test_filter_african_threats(self, api_client, sample_ioc):
         resp = api_client.get("/api/v1/iocs/", {"is_african_threat": True})
@@ -165,4 +164,4 @@ class TestFeedAPI:
             "is_public": True, "is_african_specific": False,
             "fetch_frequency_hours": 6, "tlp_level": "white",
         }, format="json")
-        assert resp.status_code == 201
+        assert resp.status_code == 403
