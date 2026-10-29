@@ -195,9 +195,7 @@ class IOCViewSet(viewsets.ModelViewSet):
         levels = _visible_tlp_levels(self.request.user)
         if not levels:
             return qs.none()
-        return qs.filter(tlp_level__in=levels).annotate(
-            ioc_count=Count("iocs", filter=Q(iocs__tlp_level__in=levels), distinct=True)
-        )
+        return qs.filter(tlp_level__in=levels)
 
     @action(detail=False, methods=["post"], url_path="bulk-import")
     def bulk_import(self, request):
@@ -313,4 +311,6 @@ class CampaignViewSet(viewsets.ModelViewSet):
         levels = _visible_tlp_levels(self.request.user)
         if not levels:
             return qs.none()
-        return qs.filter(tlp_level__in=levels)
+        return qs.filter(tlp_level__in=levels).annotate(
+            ioc_count=Count("iocs", filter=Q(iocs__tlp_level__in=levels), distinct=True)
+        )
