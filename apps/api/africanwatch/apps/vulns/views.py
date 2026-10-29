@@ -17,12 +17,12 @@ from africanwatch.apps.vulns.serializers import (
     ScanJobSerializer,
     VulnerabilitySerializer,
 )
-from africanwatch.security.permissions import CanOperateSecurityAssessment
+from africanwatch.security.permissions import CanManageVulnerabilities, CanOperateSecurityAssessment
 
 class VulnerabilityViewSet(viewsets.ModelViewSet):
     queryset = Vulnerability.objects.select_related("asset","asset__organization")
     serializer_class = VulnerabilitySerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [CanManageVulnerabilities]
     filterset_fields = ["severity","status","scanner","is_exploitable","asset"]
     search_fields = ["title","cve_id","description","affected_component"]
     ordering_fields = ["cvss_score","severity","discovered_at"]
