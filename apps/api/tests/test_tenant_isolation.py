@@ -136,7 +136,9 @@ def test_tenant_inventory_and_soc_lists_do_not_include_other_organization(
 
     response = api_client.get("/api/v1/audit-logs/")
     assert response.status_code == 200
-    assert all(str(row["organization"]) == str(org.id) for row in _items(response))
+    audit_rows = _items(response)
+    assert len(audit_rows) == 1
+    assert str(audit_rows[0]["user"]) == str(admin_user.id)
 
 
 @pytest.mark.django_db
