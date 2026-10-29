@@ -32,6 +32,9 @@ jobs:
           africanwatch/apps/vulns/models.py
           africanwatch/apps/vulns/serializers.py
           africanwatch/apps/vulns/views.py
+          africanwatch/apps/organizations/views.py
+          africanwatch/apps/soc/views.py
+          africanwatch/apps/ai_engine/views.py
           africanwatch/security/permissions.py
           africanwatch/apps/vulns/tasks.py
           africanwatch/apps/vulns/report_parsers.py
@@ -43,6 +46,7 @@ jobs:
           tests/test_report_parsers.py
           tests/test_report_ingestion.py
           tests/test_vulnerability_permissions.py
+          tests/test_tenant_isolation.py
           africanwatch/apps/vulns/serializers.py
           tests/test_security_lab.py
           tests/test_adversary_analysis.py
