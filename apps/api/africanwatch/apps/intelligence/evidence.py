@@ -16,7 +16,7 @@ from django.db import transaction
 from django.db.models import Max
 from django.utils import timezone
 
-from .models import EvidenceManifest, EvidenceRecord
+from .models import CollectionRun, EvidenceManifest, EvidenceRecord
 
 
 HASH_ALGORITHM = "SHA-256"
@@ -145,7 +145,14 @@ def record_observation_evidence(
         payload_sha256=payload_digest(payload),
     )
 
-def _manifest_signing_bytes(run_id: str, version: int, entries: list[dict[str, str]], root_hash: str) -> bytes:
+def _manifest_signing_bytes(
+    run_id: str,
+    version: int,
+    entries: list[dict[str, str]],
+    root_hash: str,
+    signature_algorithm: str,
+    signing_key_id: str,
+) -> bytes:
     return canonical_json_bytes({
         "schema_version": 1,
         "run_id": run_id,
@@ -155,14 +162,22 @@ def _manifest_signing_bytes(run_id: str, version: int, entries: list[dict[str, s
         "evidence_count": len(entries),
         "entries": entries,
         "root_hash": root_hash,
+        "signature_algorithm": signature_algorithm,
+        "signing_key_id": signing_key_id,
     })
 
 
 @transaction.atomic
 def build_run_manifest(run, signing_key=None, signing_key_id: str = "", generated_by=None) -> EvidenceManifest | None:
     """Append a new manifest version for every evidence record attached to a run."""
+    # Serialize manifest version allocation per run to prevent concurrent
+    # collectors from selecting the same next version.
+    locked_run = CollectionRun.objects.select_for_update().get(
+        pk=run.pk,
+        organization=run.organization,
+    )
     records = list(
-        EvidenceRecord.objects.filter(organization=run.organization, run=run)
+        EvidenceRecord.objects.filter(organization=locked_run.organization, run=locked_run)
         .order_by("id")
     )
     if not records:
@@ -173,20 +188,25 @@ def build_run_manifest(run, signing_key=None, signing_key_id: str = "", generate
         for record in records
     ]
     root_hash = merkle_root([entry["payload_sha256"] for entry in entries])
-    previous_version = EvidenceManifest.objects.filter(run=run).aggregate(value=Max("version"))["value"] or 0
+    previous_version = EvidenceManifest.objects.filter(run=locked_run).aggregate(value=Max("version"))["value"] or 0
     version = previous_version + 1
 
     signature = ""
     signature_algorithm = "none"
     if signing_key is not None:
-        signature = base64.b64encode(
-            signing_key.sign(_manifest_signing_bytes(str(run.id), version, entries, root_hash))
-        ).decode("ascii")
         signature_algorithm = "Ed25519"
+        signature = base64.b64encode(
+            signing_key.sign(
+                _manifest_signing_bytes(
+                    str(locked_run.id), version, entries, root_hash,
+                    signature_algorithm, signing_key_id,
+                )
+            )
+        ).decode("ascii")
 
     return EvidenceManifest.objects.create(
-        organization=run.organization,
-        run=run,
+        organization=locked_run.organization,
+        run=locked_run,
         version=version,
         hash_algorithm=HASH_ALGORITHM,
         merkle_algorithm=MERKLE_ALGORITHM,
@@ -235,7 +255,10 @@ def verify_manifest(manifest: EvidenceManifest, public_key=None) -> dict[str, An
             try:
                 public_key.verify(
                     base64.b64decode(manifest.signature, validate=True),
-                    _manifest_signing_bytes(str(manifest.run_id), manifest.version, manifest.entries, manifest.root_hash),
+                    _manifest_signing_bytes(
+                        str(manifest.run_id), manifest.version, manifest.entries,
+                        manifest.root_hash, manifest.signature_algorithm, manifest.signing_key_id,
+                    ),
                 )
                 signature_valid = True
                 signature_acceptable = True
