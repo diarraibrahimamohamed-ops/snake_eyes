@@ -145,6 +145,7 @@ def append_evidence_record(
             "evidence_grade": observation.evidence_grade,
             "confidence": observation.confidence,
             "relevance": observation.relevance,
+            "tlp": observation.tlp,
         },
     }
     payload_sha256 = sha256_json(payload)
