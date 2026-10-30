@@ -22,7 +22,8 @@ const clockLabel=(v:string|null)=>{if(!v)return "En attente des premières donn�
 export default function DashboardPage() {
  const {stats,threatScore,alerts,iocs,isConnected}=useDashboardStore();
  const {mapData,osintEvents,loading,unavailable,resourceStatus,lastChecked,lastSuccess,reload}=useDashboardData();
- const failedResources=(Object.entries(resourceStatus) as [string,string][]).filter(([,status])=>status==="error").map(([name])=>({stats:"statistiques",activity:"activité et IOC",map:"carte"}[name]||name));
+ const resourceLabels:Record<keyof typeof resourceStatus,string>={stats:"statistiques",activity:"activité et IOC",map:"carte"};
+ const failedResources=(Object.entries(resourceStatus) as [keyof typeof resourceStatus,string][]).filter(([,status])=>status==="error").map(([name])=>resourceLabels[name]);
  const [clock,setClock]=useState("");
  useWebSocket();
  useEffect(()=>{const update=()=>setClock(new Date().toLocaleString("fr-FR",{dateStyle:"medium",timeStyle:"medium"}));update();const t=window.setInterval(update,1000);return()=>window.clearInterval(t);},[]);
