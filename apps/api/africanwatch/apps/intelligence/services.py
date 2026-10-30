@@ -8,9 +8,8 @@ from .classifier import classify_text, extract_iocs, reliability_grade
 from .collectors import dns_enrichment, rdap_ip, rdap_domain, certificate_transparency, public_page, gdelt_news, provider_enrichment, rss_entries, public_api_snapshot
 
 def _obs_hash(title: str, content: str, url: str) -> str:
-    material = {"title": title or "", "content": content or "", "url": url or ""}
-    encoded = json.dumps(material, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
+    # Keep the existing deduplication key stable for observations already stored in v6.
+    return hashlib.sha256(f"{title}\n{content}\n{url}".encode("utf-8", "ignore")).hexdigest()
 
 
 @transaction.atomic
