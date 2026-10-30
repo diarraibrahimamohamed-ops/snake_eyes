@@ -159,6 +159,12 @@ def test_correlation_requires_shared_ioc_and_counts_distinct_sources(org):
     row_b = make_observation(org, run, source=source_b, iocs=shared_ioc, content="B")
     row_c = make_observation(org, run, source=source_c, iocs=[], content="C")
 
+    # The same configured source can acquire the deduplicated observation more
+    # than once; repeated acquisitions must not inflate the origin count.
+    record_observation_evidence(row_a, run=run, source=source_a, acquisition_method="rss")
+    record_observation_evidence(row_a, run=run, source=source_a, acquisition_method="repeat_rss")
+    record_observation_evidence(row_b, run=run, source=source_b, acquisition_method="rss")
+
     _correlate_observations(run, [row_a.id.hex, row_b.id.hex, row_c.id.hex])
 
     assert IntelligenceRelation.objects.filter(
