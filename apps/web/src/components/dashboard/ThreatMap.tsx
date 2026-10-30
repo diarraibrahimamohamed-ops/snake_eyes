@@ -36,6 +36,7 @@ export function ThreatMap({countries=[],unavailable=false}:{countries?:CountryTh
   const total = countries.reduce((sum,c)=>sum+c.total,0);
   return <div className="relative flex h-full min-h-[300px] flex-col">
     <div className="mb-2 flex justify-between text-[9px] font-mono text-gray-400"><span>{total.toLocaleString("fr-FR")} IOC · {countries.length} pays</span><span className="text-cyan-700">Agrégation nationale</span></div>
+    {unavailable&&countries.length>0&&<div role="status" className="mb-1 text-[9px] text-amber-300">Actualisation échouée — affichage des dernières données connues.</div>}
     <div className="relative min-h-0 flex-1">
       <svg viewBox="0 0 580 420" className="h-full w-full" role="img" aria-label="Carte des menaces agrégées par pays">
         <defs><pattern id="aw-grid" width="36" height="36" patternUnits="userSpaceOnUse"><path d="M36 0H0V36" fill="none" stroke="rgba(0,229,255,.07)" strokeWidth=".6"/></pattern></defs>
