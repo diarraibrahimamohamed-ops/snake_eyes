@@ -78,7 +78,7 @@ class EvidenceRecordViewSet(OrgScopedMixin, viewsets.ReadOnlyModelViewSet):
             level = getattr(organization, "tlp_level", "white")
             clearance = tlp_order.index(level) if level in tlp_order else 0
             queryset = queryset.filter(
-                observation__tlp__in=tlp_order[: clearance + 1]
+                payload__observation__tlp__in=tlp_order[: clearance + 1]
             )
         run_id = self.request.query_params.get("run")
         if run_id:
