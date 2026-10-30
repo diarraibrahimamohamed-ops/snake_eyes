@@ -37,6 +37,32 @@ def _create_evidence_run(org, suffix):
 
 
 @pytest.mark.django_db
+def test_evidence_api_honors_organization_tlp_clearance(api_client, org):
+    run = _create_evidence_run(org, "tlp")
+    observation = run.observations.first()
+    source = run.sources.first()
+    observation.tlp = "red"
+    observation.save(update_fields=["tlp", "updated_at"])
+
+    # A second capture snapshots the newly assigned TLP:RED classification.
+    save_observation(
+        run,
+        source,
+        "tlp advisory",
+        "Credential phishing IOC at login.example.test",
+        url="https://tlp.example.test/advisories/1",
+    )
+
+    response = api_client.get(
+        "/api/v1/intelligence-evidence/", {"run": str(run.id)}
+    )
+    assert response.status_code == 200
+    rows = response.data["results"] if isinstance(response.data, dict) and "results" in response.data else response.data
+    assert len(rows) == 1
+    assert rows[0]["payload"]["observation"]["tlp"] == "green"
+
+
+@pytest.mark.django_db
 def test_evidence_api_lists_tenant_records_and_verifies_scoped_run(api_client, org):
     own_run = _create_evidence_run(org, "own")
     foreign_org = Organization.objects.create(
