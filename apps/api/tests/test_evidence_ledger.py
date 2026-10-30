@@ -2,6 +2,7 @@ import hashlib
 
 import pytest
 from django.core.exceptions import ValidationError
+from django.db.models.deletion import ProtectedError
 
 from africanwatch.apps.intelligence.evidence import (
     build_run_manifest,
@@ -91,6 +92,9 @@ def test_evidence_record_is_append_only_and_manifest_detects_payload_tampering(o
     verified = verify_manifest(manifest, signer.public_key())
     assert verified["valid"] is True
     assert verified["signature_valid"] is True
+
+    with pytest.raises(ProtectedError):
+        org.delete()
 
     EvidenceRecord.objects.filter(pk=evidence.pk).update(payload={"tampered": True})
     tampered = verify_manifest(manifest, signer.public_key())
