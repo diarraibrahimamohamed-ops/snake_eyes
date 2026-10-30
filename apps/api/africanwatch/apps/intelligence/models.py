@@ -78,7 +78,7 @@ class IntelligenceObservation(TimeStampedModel):
     run = models.ForeignKey(CollectionRun, null=True, blank=True, on_delete=models.SET_NULL, related_name="observations")
     source = models.ForeignKey(CollectionSource, null=True, blank=True, on_delete=models.SET_NULL, related_name="observations")
     source_label = models.CharField(max_length=255, blank=True)
-    source_url = models.URLField(blank=True)
+    source_url = models.URLField(blank=True, max_length=2000)
     title = models.CharField(max_length=500, blank=True)
     content = models.TextField()
     language = models.CharField(max_length=12, blank=True)
