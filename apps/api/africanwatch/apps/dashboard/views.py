@@ -164,21 +164,22 @@ def recent_activity(request):
 @permission_classes([IsAuthenticated])
 def threat_map_data(request):
     """Aggregate African threat indicators by country, without exposing point coordinates."""
-    from django.db.models import Count, Q
+    from django.db.models import Count, Max, Q
     from africanwatch.apps.threat_intel.models import IOC
 
     country_rows = list(
         _scope_tlp(IOC.objects.filter(is_african_threat=True, is_active=True), request.user)
         .exclude(country_code="")
-        .values("country_code", "country_name")
+        .values("country_code")
         .annotate(
+            country_name=Max("country_name"),
             total=Count("id"),
             critical=Count("id", filter=Q(severity="critical")),
             high=Count("id", filter=Q(severity="high")),
             medium=Count("id", filter=Q(severity="medium")),
             low=Count("id", filter=Q(severity="low")),
         )
-        .order_by("-total", "country_name")[:60]
+        .order_by("-total", "country_code")[:60]
     )
     return Response({
         "african_threats": country_rows,
