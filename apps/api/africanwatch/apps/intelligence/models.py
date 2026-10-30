@@ -1,3 +1,4 @@
+import uuid
 from django.db import models
 from django.utils import timezone
 from africanwatch.apps.organizations.models import Organization, User, Asset, TimeStampedModel
@@ -125,8 +126,7 @@ class ThreatForecast(TimeStampedModel):
 
 class EvidenceRecord(models.Model):
     """Append-only snapshot of one intelligence acquisition."""
-    import uuid as _uuid
-    id = models.UUIDField(primary_key=True, default=_uuid.uuid4, editable=False)
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="evidence_records")
     run = models.ForeignKey(CollectionRun, on_delete=models.SET_NULL, null=True, blank=True, related_name="evidence_records")
     observation = models.ForeignKey(IntelligenceObservation, on_delete=models.SET_NULL, null=True, blank=True, related_name="evidence_records")
