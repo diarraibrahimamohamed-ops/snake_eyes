@@ -142,8 +142,8 @@ class EvidenceRecord(models.Model):
     class Meta:
         ordering = ["captured_at", "id"]
         indexes = [
-            models.Index(fields=["organization", "captured_at"]),
-            models.Index(fields=["run", "captured_at"]),
+            models.Index(fields=["organization", "captured_at"], name="intel_ev_org_cap_idx"),
+            models.Index(fields=["run", "captured_at"], name="intel_ev_run_cap_idx"),
         ]
 
     def save(self, *args, **kwargs):
@@ -159,8 +159,7 @@ class EvidenceRecord(models.Model):
 
 class EvidenceManifest(models.Model):
     """Versioned Merkle commitment for the evidence captured by a collection run."""
-    import uuid as _uuid
-    id = models.UUIDField(primary_key=True, default=_uuid.uuid4, editable=False)
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="evidence_manifests")
     run = models.ForeignKey(CollectionRun, on_delete=models.PROTECT, related_name="evidence_manifests")
     version = models.PositiveIntegerField(default=1)
@@ -181,7 +180,7 @@ class EvidenceManifest(models.Model):
             models.UniqueConstraint(fields=["run", "version"], name="uniq_evidence_manifest_run_version"),
         ]
         indexes = [
-            models.Index(fields=["organization", "generated_at"]),
+            models.Index(fields=["organization", "generated_at"], name="intel_evman_org_gen_idx"),
         ]
 
     def save(self, *args, **kwargs):
