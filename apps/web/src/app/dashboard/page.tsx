@@ -21,7 +21,8 @@ const clockLabel=(v:string|null)=>{if(!v)return "En attente des premières donn�
 
 export default function DashboardPage() {
  const {stats,threatScore,alerts,iocs,isConnected}=useDashboardStore();
- const {mapData,osintEvents,loading,unavailable,lastChecked,reload}=useDashboardData();
+ const {mapData,osintEvents,loading,unavailable,resourceStatus,lastChecked,lastSuccess,reload}=useDashboardData();
+ const failedResources=(Object.entries(resourceStatus) as [string,string][]).filter(([,status])=>status==="error").map(([name])=>({stats:"statistiques",activity:"activité et IOC",map:"carte"}[name]||name));
  const [clock,setClock]=useState("");
  useWebSocket();
  useEffect(()=>{const update=()=>setClock(new Date().toLocaleString("fr-FR",{dateStyle:"medium",timeStyle:"medium"}));update();const t=window.setInterval(update,1000);return()=>window.clearInterval(t);},[]);
@@ -41,16 +42,16 @@ export default function DashboardPage() {
    <ThreatTicker stats={stats}/>
    <div className="flex items-center gap-3 text-[10px]"><div className="flex items-center gap-1.5">{isConnected?<><Wifi className="h-3.5 w-3.5 text-green-400"/><span className="text-green-400">STREAM LIVE</span></>:<><WifiOff className="h-3.5 w-3.5 text-gray-500"/><span className="text-gray-500">STREAM DÉCONNECTÉ</span></>}</div><span className="hidden text-[9px] tabular-nums text-cyan-700 lg:inline">{clock}</span><button type="button" onClick={()=>void reload()} disabled={loading} aria-label="Actualiser les données" className="rounded border border-cyan-900/50 p-2 text-cyan-500 hover:border-cyan-500 disabled:opacity-40"><RefreshCw className={cn("h-3.5 w-3.5",loading&&"animate-spin")}/></button></div>
   </div></header>
-  {unavailable&&<div role="status" className="border-b border-amber-900/40 bg-amber-950/30 px-4 py-2 text-[10px] text-amber-300">Les services du tableau de bord ne répondent pas. Aucune donnée fictive n’est substituée aux résultats réels.</div>}
-  <StatsGrid stats={stats} loading={loading}/>
+  {unavailable&&<div role="status" className="border-b border-amber-900/40 bg-amber-950/30 px-4 py-2 text-[10px] text-amber-300">Actualisation indisponible pour : {failedResources.join(", ")}. Les dernières données valides sont conservées ; un panneau vide ne sera pas présenté comme un résultat confirmé.</div>}
+  <StatsGrid stats={stats} loading={loading} unavailable={resourceStatus.stats==="error"}/>
   <main className="grid grid-cols-1 gap-3 p-3 xl:grid-cols-12">
-   <div className="xl:col-span-7 xl:row-span-2"><Card title="PAYS — INDICATEURS DE MENACE" badge={mapData.total_countries+" PAYS"} badgeColor="red" className="h-[480px]"><ThreatMap countries={mapData.african_threats}/></Card></div>
+   <div className="xl:col-span-7 xl:row-span-2"><Card title="PAYS — INDICATEURS DE MENACE" badge={mapData.total_countries+" PAYS"} badgeColor="red" className="h-[480px]"><ThreatMap countries={mapData.african_threats} unavailable={resourceStatus.map==="error"}/></Card></div>
    <div className="xl:col-span-2"><Card title="SCORE DE MENACE" badge={threatScore?"CALCULÉ":"INDISPONIBLE"} className="h-[232px]"><ThreatScoreGauge score={threatScore?.score??null} level={threatScore?.level??"unknown"}/></Card></div>
-   <div className="xl:col-span-3"><Card title="IOC RÉCENTS" badge={iocs.length+" ÉLÉMENTS"} className="h-[232px]"><IOCStream iocs={iocs}/></Card></div>
-   <div className="xl:col-span-2"><Card title="ALERTES RÉCENTES" badge={openAlerts+" OUVERTES"} badgeColor="orange" className="h-[234px]"><LiveAlertFeed alerts={alerts}/></Card></div>
-   <div className="xl:col-span-3"><Card title="OBSERVATIONS OSINT" badge={osintEvents.length+" ÉVÉNEMENTS"} badgeColor="purple" className="h-[234px]"><OSINTProbe items={osintEvents}/></Card></div>
-   <div className="xl:col-span-12"><Card title="ACTIVITÉ RÉCENTE" badge={activityItems.length+" ÉVÉNEMENTS"} badgeColor="green" className="h-[150px]"><SystemLogs items={activityItems}/></Card></div>
+   <div className="xl:col-span-3"><Card title="IOC RÉCENTS" badge={iocs.length+" ÉLÉMENTS"} className="h-[232px]"><IOCStream iocs={iocs} unavailable={resourceStatus.activity==="error"}/></Card></div>
+   <div className="xl:col-span-2"><Card title="ALERTES RÉCENTES" badge={openAlerts+" OUVERTES"} badgeColor="orange" className="h-[234px]"><LiveAlertFeed alerts={alerts} unavailable={resourceStatus.activity==="error"}/></Card></div>
+   <div className="xl:col-span-3"><Card title="OBSERVATIONS OSINT" badge={osintEvents.length+" ÉVÉNEMENTS"} badgeColor="purple" className="h-[234px]"><OSINTProbe items={osintEvents} unavailable={resourceStatus.activity==="error"}/></Card></div>
+   <div className="xl:col-span-12"><Card title="ACTIVITÉ RÉCENTE" badge={activityItems.length+" ÉVÉNEMENTS"} badgeColor="green" className="h-[150px]"><SystemLogs items={activityItems} unavailable={resourceStatus.activity==="error"}/></Card></div>
   </main>
-  <footer className="flex flex-wrap justify-between gap-2 px-4 pb-3 text-[9px] text-gray-600"><span>{loading?"Synchronisation des sources…":"Dernier contrôle API : "+clockLabel(lastChecked)}</span><span>Les données affichées respectent le périmètre d’accès de la session.</span></footer>
+  <footer className="flex flex-wrap justify-between gap-2 px-4 pb-3 text-[9px] text-gray-600"><span>{loading?"Synchronisation des sources…":"Dernière tentative API : "+clockLabel(lastChecked)}</span><span className="hidden sm:inline">Dernières réponses réussies — stats : {clockLabel(lastSuccess.stats)} · activité : {clockLabel(lastSuccess.activity)} · carte : {clockLabel(lastSuccess.map)}</span><span>Les données affichées respectent le périmètre d’accès de la session.</span></footer>
  </div>;
 }
