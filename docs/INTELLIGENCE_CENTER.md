@@ -38,3 +38,47 @@ Les observations peuvent être exportées au format STIX depuis `GET /api/v1/col
 ### Limite de furtivité
 
 Le mode Tor réduit l'exposition du collecteur lors de l'accès à des services Onion autorisés, mais AfricaWatch ne prétend pas rendre une opération active invisible et n'emploie pas Tor pour contourner les journaux, IDS ou contrôles d'une cible. Les scans actifs restent identifiables et explicitement bornés.
+
+
+## Evidence Ledger v1
+
+Chaque acquisition enregistrée par `save_observation` produit désormais une entrée `IntelligenceEvidence`, y compris lorsqu'elle correspond à une observation déjà connue. L'observation peut être dédupliquée; l'événement d'acquisition, lui, reste distinct.
+
+Une entrée conserve notamment :
+
+- l'organisation, la collecte, l'observation et la source enregistrée lorsqu'elle existe ;
+- le nom et les URL de provenance déclarés, y compris l'URL de la source institutionnelle configurée ;
+- l'horodatage de capture, le numéro de séquence, la version du schéma et la classification TLP au moment de la capture ;
+- un instantané du titre, d'un aperçu du contenu, des IOC et de la classification ;
+- le SHA-256 du contenu reçu et, lorsqu'un objet brut est fourni, son empreinte ;
+- le SHA-256 du contenu canonique de l'entrée, le hash précédent et le hash de l'entrée.
+
+Les entrées sont chaînées par collecte. `CollectionRun.evidence_root_hash` contient la racine de Merkle calculée sur les hashes des entrées, et non plus une empreinte calculée uniquement à partir des identifiants d'observations.
+
+### Vérification et consultation
+
+- `GET /api/v1/intelligence-evidence/?run=<uuid>` — consulter les entrées visibles dans le périmètre de l'utilisateur et au niveau TLP autorisé par son organisation ;
+- `GET /api/v1/collection-runs/<uuid>/verify-evidence/` — recalculer les empreintes, vérifier la séquence, la chaîne et la racine de Merkle.
+
+La vérification renvoie `valid`, `invalid` ou `empty`, avec les anomalies et les racines calculées/enregistrées.
+
+### Corroboration et provenance
+
+Une répétition de collecte depuis la même source n'est pas comptée comme une confirmation indépendante. Le compteur de corroboration est alimenté à partir des sources enregistrées distinctes (ou des URL externes distinctes lorsqu'aucune source institutionnelle n'est liée).
+
+Les enrichissements RDAP, DNS, Certificate Transparency et les fournisseurs passifs ne sont plus attribués arbitrairement à la première source RSS/API attachée à la collecte. Les sources configurées restent associées uniquement aux éléments qu'elles ont effectivement fournis.
+
+La corrélation entre observations n'est créée que lorsqu'au moins un IOC est partagé. Une langue commune ne suffit pas à établir une relation.
+
+### Limites de garantie
+
+Cette version est une fondation de traçabilité et de détection d'altérations, pas un système de preuve inviolable certifié :
+
+- le contenu de l'observation est conservé sous forme d'aperçu limité à 10 000 caractères ; le hash porte sur le contenu complet reçu ;
+- le corps brut des réponses externes n'est pas archivé par ce mécanisme ; son empreinte est conservée lorsqu'il est fourni ;
+- les contrôles append-only sont imposés au niveau applicatif/ORM et par des clés étrangères restrictives ; un administrateur de base de données privilégié peut contourner ces contrôles ;
+- la racine de Merkle est stockée dans la même base. Une signature périodique et un ancrage indépendant (KMS/HSM ou service d'horodatage externe) restent nécessaires pour résister à un administrateur capable de modifier la base et ses empreintes ;
+- les collectes historiques antérieures à cette version ne sont pas rétroactivement transformées en entrées de preuve. Leur vérification renvoie `empty` ;
+- la migration ajoute également la relation Many-to-Many `CollectionRun.sources` absente de la migration initiale, afin que les installations neuves disposent de la table intermédiaire attendue par le modèle.
+
+Ne présente pas un hash ou une racine de Merkle seule comme une preuve d'authenticité de la source ou de vérité de l'observation.

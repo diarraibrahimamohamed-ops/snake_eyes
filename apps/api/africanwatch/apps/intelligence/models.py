@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 from africanwatch.apps.organizations.models import Organization, User, Asset, TimeStampedModel
@@ -77,7 +78,7 @@ class IntelligenceObservation(TimeStampedModel):
     run = models.ForeignKey(CollectionRun, null=True, blank=True, on_delete=models.SET_NULL, related_name="observations")
     source = models.ForeignKey(CollectionSource, null=True, blank=True, on_delete=models.SET_NULL, related_name="observations")
     source_label = models.CharField(max_length=255, blank=True)
-    source_url = models.URLField(blank=True)
+    source_url = models.URLField(blank=True, max_length=2000)
     title = models.CharField(max_length=500, blank=True)
     content = models.TextField()
     language = models.CharField(max_length=12, blank=True)
@@ -109,6 +110,69 @@ class IntelligenceRelation(TimeStampedModel):
     relation_type = models.CharField(max_length=60)
     weight = models.FloatField(default=0.5)
     evidence = models.JSONField(default=dict, blank=True)
+
+class EvidenceAppendOnlyQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise ValidationError("Evidence records are append-only.")
+
+    def delete(self):
+        raise ValidationError("Evidence records are append-only.")
+
+
+class EvidenceAppendOnlyManager(models.Manager.from_queryset(EvidenceAppendOnlyQuerySet)):
+    pass
+
+
+class IntelligenceEvidence(TimeStampedModel):
+    """Immutable application-level snapshot for one intelligence acquisition."""
+
+    organization = models.ForeignKey(
+        Organization, on_delete=models.PROTECT, related_name="intelligence_evidence"
+    )
+    run = models.ForeignKey(
+        CollectionRun, on_delete=models.PROTECT, related_name="evidence_records"
+    )
+    observation = models.ForeignKey(
+        IntelligenceObservation, on_delete=models.PROTECT, related_name="evidence_records"
+    )
+    source = models.ForeignKey(
+        CollectionSource, null=True, blank=True, on_delete=models.PROTECT,
+        related_name="evidence_records",
+    )
+    sequence = models.PositiveIntegerField()
+    schema_version = models.PositiveSmallIntegerField(default=1)
+    captured_at = models.DateTimeField(default=timezone.now, db_index=True)
+    source_label = models.CharField(max_length=255, blank=True)
+    source_url = models.URLField(blank=True)
+    payload = models.JSONField()
+    payload_sha256 = models.CharField(max_length=64)
+    previous_hash = models.CharField(max_length=64, blank=True)
+    record_hash = models.CharField(max_length=64, db_index=True)
+
+    objects = EvidenceAppendOnlyManager()
+
+    class Meta:
+        ordering = ["run_id", "sequence"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["run", "sequence"], name="uniq_intel_evidence_run_sequence"
+            )
+        ]
+        indexes = [
+            models.Index(
+                fields=["organization", "captured_at"],
+                name="intel_evidence_org_time_idx",
+            )
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.pk and type(self).objects.filter(pk=self.pk).exists():
+            raise ValidationError("Evidence records cannot be modified; append a new record.")
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Evidence records cannot be deleted.")
+
 
 class ThreatForecast(TimeStampedModel):
     organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="threat_forecasts")
