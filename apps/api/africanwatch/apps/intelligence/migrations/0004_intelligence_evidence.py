@@ -11,6 +11,17 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # Repair the historical initial migration, which declared CollectionRun.sources
+        # in the model but never created its implicit many-to-many table.
+        migrations.AddField(
+            model_name="collectionrun",
+            name="sources",
+            field=models.ManyToManyField(
+                blank=True,
+                related_name="runs",
+                to="intelligence.collectionsource",
+            ),
+        ),
         migrations.CreateModel(
             name="IntelligenceEvidence",
             fields=[
