@@ -23,7 +23,7 @@ class Migration(migrations.Migration):
                 ("payload", models.JSONField()),
                 ("payload_sha256", models.CharField(db_index=True, max_length=64)),
                 ("observation", models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name="evidence_records", to="intelligence.intelligenceobservation")),
-                ("organization", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="evidence_records", to="organizations.organization")),
+                ("organization", models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name="evidence_records", to="organizations.organization")),
                 ("run", models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name="evidence_records", to="intelligence.collectionrun")),
                 ("source", models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name="evidence_records", to="intelligence.collectionsource")),
             ],
@@ -50,7 +50,7 @@ class Migration(migrations.Migration):
                 ("signing_key_id", models.CharField(blank=True, max_length=120)),
                 ("generated_at", models.DateTimeField(db_index=True, default=django.utils.timezone.now)),
                 ("generated_by", models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name="generated_evidence_manifests", to="organizations.user")),
-                ("organization", models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name="evidence_manifests", to="organizations.organization")),
+                ("organization", models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name="evidence_manifests", to="organizations.organization")),
                 ("run", models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name="evidence_manifests", to="intelligence.collectionrun")),
             ],
             options={
