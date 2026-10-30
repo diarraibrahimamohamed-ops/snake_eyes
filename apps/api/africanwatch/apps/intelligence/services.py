@@ -26,6 +26,7 @@ from .models import (
     CollectionRun,
     CollectionSource,
     CollectionTarget,
+    EvidenceRecord,
     IntelligenceObservation,
     IntelligenceRelation,
 )
@@ -312,6 +313,25 @@ def _correlate_observations(run, observation_ids):
             organization=run.organization,
         ).select_related("source")
     )
+    row_ids = [row.id for row in rows]
+
+    # The acquisition ledger is authoritative for provenance because a
+    # deduplicated analytical observation can have been acquired by more than
+    # one configured source/provider over time.
+    origins_by_observation = {row.id: set() for row in rows}
+    evidence_rows = EvidenceRecord.objects.filter(
+        organization=run.organization,
+        observation_id__in=row_ids,
+    ).values_list("observation_id", "source_id", "source_label")
+    for observation_id, source_id, source_label in evidence_rows:
+        origin = f"source:{source_id}" if source_id else f"provider:{(source_label or 'unknown').strip().casefold()}"
+        origins_by_observation[observation_id].add(origin)
+
+    # Legacy observations that predate the Evidence Ledger remain correlatable.
+    for row in rows:
+        if not origins_by_observation[row.id]:
+            origins_by_observation[row.id].add(_source_origin_key(row))
+
     for index, left in enumerate(rows):
         left_iocs = {
             str(item.get("value", "")).strip().casefold()
@@ -343,18 +363,18 @@ def _correlate_observations(run, observation_ids):
                 },
             )
 
-    # Count distinct source origins among observations connected by a shared IOC.
-    # Re-fetching the same source does not increase this value.
+    # Count distinct acquisition origins attached to related observations,
+    # excluding every origin already attached to the current observation.
     for row in rows:
         relations = IntelligenceRelation.objects.filter(organization=run.organization).filter(
             Q(left=row) | Q(right=row)
-        ).select_related("left__source", "right__source")
-        origins = set()
-        for relation in relations:
-            other = relation.right if relation.left_id == row.id else relation.left
-            origin = _source_origin_key(other)
-            if origin != _source_origin_key(row):
-                origins.add(origin)
-        if row.corroboration_count != len(origins):
-            row.corroboration_count = len(origins)
+        ).values_list("left_id", "right_id")
+        other_origins = set()
+        own_origins = origins_by_observation[row.id]
+        for left_id, right_id in relations:
+            other_id = right_id if left_id == row.id else left_id
+            other_origins.update(origins_by_observation.get(other_id, set()))
+        corroboration = len(other_origins - own_origins)
+        if row.corroboration_count != corroboration:
+            row.corroboration_count = corroboration
             row.save(update_fields=["corroboration_count", "updated_at"])
