@@ -55,3 +55,19 @@ class ThreatForecastSerializer(serializers.ModelSerializer):
         model = ThreatForecast
         fields = "__all__"
         read_only_fields = [f.name for f in ThreatForecast._meta.fields]
+
+
+from .models import EvidenceManifest, EvidenceRecord
+
+class EvidenceRecordSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EvidenceRecord
+        fields = "__all__"
+        read_only_fields = [field.name for field in EvidenceRecord._meta.fields]
+
+
+class EvidenceManifestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EvidenceManifest
+        fields = "__all__"
+        read_only_fields = [field.name for field in EvidenceManifest._meta.fields]
