@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import CollectionTarget, CollectionSource, CollectionRun, IntelligenceObservation, IntelligenceRelation, ThreatForecast
+from .models import CollectionTarget, CollectionSource, CollectionRun, IntelligenceObservation, IntelligenceRelation, ThreatForecast, EvidenceRecord, EvidenceManifest
 
 class CollectionTargetSerializer(serializers.ModelSerializer):
     class Meta:
@@ -55,9 +55,6 @@ class ThreatForecastSerializer(serializers.ModelSerializer):
         model = ThreatForecast
         fields = "__all__"
         read_only_fields = [f.name for f in ThreatForecast._meta.fields]
-
-
-from .models import EvidenceManifest, EvidenceRecord
 
 class EvidenceRecordSerializer(serializers.ModelSerializer):
     class Meta:
