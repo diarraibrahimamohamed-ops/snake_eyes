@@ -33,7 +33,7 @@ class IntelligenceEvidenceAdmin(admin.ModelAdmin):
         "record_hash",
     )
     list_filter = ("schema_version", "captured_at")
-    search_fields = ("run__id", "record_hash", "payload_sha256", "source_label")
+    search_fields = ("record_hash", "payload_sha256", "source_label")
     readonly_fields = (
         "id",
         "organization",
