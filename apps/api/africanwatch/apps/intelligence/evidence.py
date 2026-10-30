@@ -81,25 +81,40 @@ def merkle_root(payload_hashes: list[str]) -> str:
     return level[0].hex()
 
 
-def record_observation_evidence(observation, acquisition_method: str = "passive_collection") -> EvidenceRecord:
-    """Freeze the normalized observation and its provenance at acquisition time."""
-    source = observation.source
-    source_label = observation.source_label or (source.name if source else "Internal collector")
+def record_observation_evidence(
+    observation,
+    *,
+    run=None,
+    source=None,
+    source_label: str | None = None,
+    source_url: str | None = None,
+    acquisition_method: str = "passive_collection",
+    acquisition_provenance: dict[str, Any] | None = None,
+    captured_at=None,
+) -> EvidenceRecord:
+    """Freeze one acquisition, even when its analytical observation was deduplicated."""
+    acquired_at = captured_at or timezone.now()
+    source = source if source is not None else observation.source
+    source_label = source_label or observation.source_label or (source.name if source else "Internal collector")
+    source_url = source_url if source_url is not None else (observation.source_url or "")
+    run = run if run is not None else observation.run
+    provenance = acquisition_provenance if acquisition_provenance is not None else (observation.provenance or {})
+
     payload = {
         "schema_version": 1,
         "organization_id": str(observation.organization_id),
-        "collection_run_id": str(observation.run_id) if observation.run_id else None,
+        "collection_run_id": str(run.id) if run else None,
         "observation_id": str(observation.id),
         "source": {
             "configured_source_id": str(source.id) if source else None,
             "label": source_label,
-            "url": observation.source_url or "",
+            "url": source_url,
         },
         "timestamps": {
             "published_at": observation.published_at.isoformat() if observation.published_at else None,
-            "captured_at": observation.retrieved_at.isoformat(),
+            "captured_at": acquired_at.isoformat(),
             "first_seen": observation.first_seen.isoformat() if observation.first_seen else None,
-            "last_seen": observation.last_seen.isoformat() if observation.last_seen else None,
+            "last_seen": acquired_at.isoformat(),
         },
         "content": {
             "title": observation.title,
@@ -108,27 +123,26 @@ def record_observation_evidence(observation, acquisition_method: str = "passive_
             "classification": observation.classification or {},
             "entities": observation.entities or {},
         },
-        "provenance": observation.provenance or {},
+        "provenance": provenance,
         "content_sha256": observation.content_sha256,
         "evidence_grade_at_capture": observation.evidence_grade,
-        "source_reliability_at_capture": observation.source_reliability,
+        "source_reliability_at_capture": float(source.reliability) if source is not None else 0.5,
         "confidence_at_capture": observation.confidence,
         "tlp": observation.tlp,
     }
     return EvidenceRecord.objects.create(
         organization=observation.organization,
-        run=observation.run,
+        run=run,
         observation=observation,
         source=source,
         source_label=source_label,
-        source_url=observation.source_url or "",
+        source_url=source_url,
         acquisition_method=acquisition_method,
-        captured_at=observation.retrieved_at,
+        captured_at=acquired_at,
         tlp=observation.tlp,
         payload=payload,
         payload_sha256=payload_digest(payload),
     )
-
 
 def _manifest_signing_bytes(run_id: str, version: int, entries: list[dict[str, str]], root_hash: str) -> bytes:
     return canonical_json_bytes({
