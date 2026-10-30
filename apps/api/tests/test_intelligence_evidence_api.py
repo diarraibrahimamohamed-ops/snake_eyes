@@ -51,7 +51,7 @@ def test_evidence_api_lists_tenant_records_and_verifies_scoped_run(api_client, o
 
     response = api_client.get("/api/v1/intelligence-evidence/")
     assert response.status_code == 200, response.data
-    rows = response.data.get("results", response.data)
+    rows = response.data["results"] if isinstance(response.data, dict) and "results" in response.data else response.data
     visible_run_ids = {str(row["run"]) for row in rows}
     assert str(own_run.id) in visible_run_ids
     assert str(foreign_run.id) not in visible_run_ids
@@ -60,7 +60,7 @@ def test_evidence_api_lists_tenant_records_and_verifies_scoped_run(api_client, o
         "/api/v1/intelligence-evidence/", {"run": str(own_run.id)}
     )
     assert filtered.status_code == 200
-    filtered_rows = filtered.data.get("results", filtered.data)
+    filtered_rows = filtered.data["results"] if isinstance(filtered.data, dict) and "results" in filtered.data else filtered.data
     assert len(filtered_rows) == 1
     assert str(filtered_rows[0]["run"]) == str(own_run.id)
 
