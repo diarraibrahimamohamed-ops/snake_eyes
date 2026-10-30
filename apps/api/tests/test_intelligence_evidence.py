@@ -236,6 +236,81 @@ def test_evidence_records_reject_application_level_mutation_and_deletion(org):
         IntelligenceEvidence.objects.filter(pk=record.pk).update(source_label="changed")
 
 
+@pytest.mark.django_db
+def test_passive_provider_result_is_not_attributed_to_an_unrelated_registered_source(org):
+    target = CollectionTarget.objects.create(
+        organization=org,
+        kind=CollectionTarget.Kind.DOMAIN,
+        value="provider.example.test",
+        authorization_reference="TEST-AUTH-007",
+        allowed=True,
+    )
+    configured_source = CollectionSource.objects.create(
+        organization=org,
+        name="Unrelated configured RSS",
+        kind=CollectionSource.Kind.RSS,
+        url="https://unrelated.example.test/feed.xml",
+    )
+    run = CollectionRun.objects.create(organization=org, target=target)
+    run.sources.add(configured_source)
+
+    save_observation(
+        run,
+        None,
+        "RDAP — provider.example.test",
+        "RDAP registration snapshot",
+        url="https://rdap.org/domain/provider.example.test",
+        source_label="RDAP",
+    )
+
+    record = IntelligenceEvidence.objects.get(run=run)
+    assert record.source_id is None
+    assert record.source_label == "RDAP"
+    assert record.payload["source"]["id"] is None
+    assert record.payload["source"]["registered_source_url"] is None
+    assert verify_run_evidence(run)["status"] == "valid"
+
+
+@pytest.mark.django_db
+def test_shared_ioc_creates_a_documented_cross_language_relation(org):
+    target = CollectionTarget.objects.create(
+        organization=org,
+        kind=CollectionTarget.Kind.DOMAIN,
+        value="shared-ioc.example.test",
+        authorization_reference="TEST-AUTH-008",
+        allowed=True,
+    )
+    source = CollectionSource.objects.create(
+        organization=org,
+        name="CERT shared IOC",
+        kind=CollectionSource.Kind.RSS,
+        url="https://cert.example.test/shared.xml",
+    )
+    run = CollectionRun.objects.create(organization=org, target=target)
+    run.sources.add(source)
+
+    first, _ = save_observation(
+        run, source, "English report", "Ransomware indicator 203.0.113.222",
+        url="https://cert.example.test/shared/en",
+    )
+    second, _ = save_observation(
+        run, source, "French report", "Alerte ransomware indicateur 203.0.113.222",
+        url="https://cert.example.test/shared/fr",
+    )
+    first.language = "en"
+    first.save(update_fields=["language", "updated_at"])
+    second.language = "fr"
+    second.save(update_fields=["language", "updated_at"])
+
+    _correlate_observations(run, [str(first.id), str(second.id)])
+
+    from africanwatch.apps.intelligence.models import IntelligenceRelation
+    relation = IntelligenceRelation.objects.get(left=first, right=second)
+    assert relation.relation_type == "shared_ioc"
+    assert relation.evidence["shared_iocs"] == ["203.0.113.222"]
+    assert relation.evidence["cross_language"] is True
+
+
 def test_merkle_root_is_deterministic_and_empty_for_no_leaves():
     assert merkle_root([]) == ""
     assert merkle_root(["a" * 64]) == merkle_root(["a" * 64])
