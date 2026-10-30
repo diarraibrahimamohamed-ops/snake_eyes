@@ -1,3 +1,5 @@
+import hashlib
+
 import pytest
 from django.core.exceptions import ValidationError
 
