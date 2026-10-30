@@ -48,7 +48,7 @@ Une entrée conserve notamment :
 
 - l'organisation, la collecte, l'observation et la source enregistrée lorsqu'elle existe ;
 - le nom et les URL de provenance déclarés, y compris l'URL de la source institutionnelle configurée ;
-- l'horodatage de capture, le numéro de séquence et la version du schéma ;
+- l'horodatage de capture, le numéro de séquence et la version du schéma et la classification TLP au moment de la capture ;
 - un instantané du titre, d'un aperçu du contenu, des IOC et de la classification ;
 - le SHA-256 du contenu reçu et, lorsqu'un objet brut est fourni, son empreinte ;
 - le SHA-256 du contenu canonique de l'entrée, le hash précédent et le hash de l'entrée.
