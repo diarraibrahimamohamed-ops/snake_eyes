@@ -29,7 +29,7 @@ class Migration(migrations.Migration):
                 ("schema_version", models.PositiveSmallIntegerField(default=1)),
                 ("captured_at", models.DateTimeField(db_index=True, default=django.utils.timezone.now)),
                 ("source_label", models.CharField(blank=True, max_length=255)),
-                ("source_url", models.URLField(blank=True)),
+                ("source_url", models.URLField(blank=True, max_length=2000)),
                 ("payload", models.JSONField()),
                 ("payload_sha256", models.CharField(max_length=64)),
                 ("previous_hash", models.CharField(blank=True, max_length=64)),
