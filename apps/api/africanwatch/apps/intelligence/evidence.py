@@ -21,6 +21,7 @@ from .models import EvidenceManifest, EvidenceRecord
 
 HASH_ALGORITHM = "SHA-256"
 MERKLE_ALGORITHM = "sha256-0x00-leaf-0x01-node-duplicate-last-v1"
+_UNSET = object()
 
 
 def _json_default(value: Any) -> str:
@@ -84,8 +85,8 @@ def merkle_root(payload_hashes: list[str]) -> str:
 def record_observation_evidence(
     observation,
     *,
-    run=None,
-    source=None,
+    run=_UNSET,
+    source=_UNSET,
     source_label: str | None = None,
     source_url: str | None = None,
     acquisition_method: str = "passive_collection",
@@ -94,10 +95,10 @@ def record_observation_evidence(
 ) -> EvidenceRecord:
     """Freeze one acquisition, even when its analytical observation was deduplicated."""
     acquired_at = captured_at or timezone.now()
-    source = source if source is not None else observation.source
+    source = observation.source if source is _UNSET else source
     source_label = source_label or observation.source_label or (source.name if source else "Internal collector")
     source_url = source_url if source_url is not None else (observation.source_url or "")
-    run = run if run is not None else observation.run
+    run = observation.run if run is _UNSET else run
     provenance = acquisition_provenance if acquisition_provenance is not None else (observation.provenance or {})
 
     payload = {
