@@ -185,7 +185,7 @@ def _correlate_observations(run, observation_ids):
     rows = list(
         IntelligenceObservation.objects.filter(
             id__in=set(observation_ids), organization=run.organization
-        )
+        ).order_by("retrieved_at", "id")
     )
     for index, left in enumerate(rows):
         left_iocs = {
