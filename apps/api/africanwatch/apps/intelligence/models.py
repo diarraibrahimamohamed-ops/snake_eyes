@@ -127,7 +127,7 @@ class ThreatForecast(TimeStampedModel):
 class EvidenceRecord(models.Model):
     """Append-only snapshot of one intelligence acquisition."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="evidence_records")
+    organization = models.ForeignKey(Organization, on_delete=models.PROTECT, related_name="evidence_records")
     run = models.ForeignKey(CollectionRun, on_delete=models.SET_NULL, null=True, blank=True, related_name="evidence_records")
     observation = models.ForeignKey(IntelligenceObservation, on_delete=models.SET_NULL, null=True, blank=True, related_name="evidence_records")
     source = models.ForeignKey(CollectionSource, on_delete=models.SET_NULL, null=True, blank=True, related_name="evidence_records")
@@ -160,7 +160,7 @@ class EvidenceRecord(models.Model):
 class EvidenceManifest(models.Model):
     """Versioned Merkle commitment for the evidence captured by a collection run."""
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    organization = models.ForeignKey(Organization, on_delete=models.CASCADE, related_name="evidence_manifests")
+    organization = models.ForeignKey(Organization, on_delete=models.PROTECT, related_name="evidence_manifests")
     run = models.ForeignKey(CollectionRun, on_delete=models.PROTECT, related_name="evidence_manifests")
     version = models.PositiveIntegerField(default=1)
     hash_algorithm = models.CharField(max_length=16, default="SHA-256")
