@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 from africanwatch.security.permissions import CanOperateSecurityAssessment, org_scope
-from .models import CollectionTarget, CollectionSource, CollectionRun, IntelligenceObservation, IntelligenceRelation, ThreatForecast
+from .models import CollectionTarget, CollectionSource, CollectionRun, IntelligenceObservation, IntelligenceRelation, ThreatForecast, EvidenceRecord, EvidenceManifest
 from .serializers import *
 from .collectors import dns_enrichment, rdap_ip, rdap_domain, certificate_transparency
 from .tasks import run_collection_task, compute_forecast_task
@@ -112,3 +112,17 @@ def export_run_stix(request, pk):
         raise PermissionDenied("Collecte hors organisation")
     from .stix_export import export_run
     return Response(export_run(run))
+
+
+class EvidenceRecordViewSet(OrgScopedMixin, viewsets.ReadOnlyModelViewSet):
+    """Read-only access to immutable evidence snapshots within the current tenant."""
+    queryset = EvidenceRecord.objects.select_related("organization", "run", "observation", "source")
+    serializer_class = EvidenceRecordSerializer
+    permission_classes = [IsAuthenticated, CanOperateSecurityAssessment]
+
+
+class EvidenceManifestViewSet(OrgScopedMixin, viewsets.ReadOnlyModelViewSet):
+    """Read-only access to versioned Merkle manifests within the current tenant."""
+    queryset = EvidenceManifest.objects.select_related("organization", "run", "generated_by")
+    serializer_class = EvidenceManifestSerializer
+    permission_classes = [IsAuthenticated, CanOperateSecurityAssessment]
