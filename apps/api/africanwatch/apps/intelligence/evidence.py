@@ -225,9 +225,11 @@ def verify_manifest(manifest: EvidenceManifest, public_key=None) -> dict[str, An
 
     calculated_root = merkle_root(digests) if len(digests) == len(manifest.entries) else ""
     root_valid = calculated_root == manifest.root_hash
+    signature_required = manifest.signature_algorithm != "none"
     signature_valid = None
-    if public_key is not None:
-        signature_valid = False
+    signature_acceptable = not signature_required
+    if public_key is not None and signature_required:
+        signature_acceptable = False
         if manifest.signature and manifest.signature_algorithm == "Ed25519":
             try:
                 public_key.verify(
@@ -235,11 +237,12 @@ def verify_manifest(manifest: EvidenceManifest, public_key=None) -> dict[str, An
                     _manifest_signing_bytes(str(manifest.run_id), manifest.version, manifest.entries, manifest.root_hash),
                 )
                 signature_valid = True
+                signature_acceptable = True
             except Exception:
                 signature_valid = False
 
     return {
-        "valid": bool(payloads_valid and root_valid and (signature_valid is not False)),
+        "valid": bool(payloads_valid and root_valid and signature_acceptable),
         "payloads_valid": payloads_valid,
         "root_valid": root_valid,
         "signature_valid": signature_valid,
