@@ -104,7 +104,7 @@ def global_stats(request):
             "assets": assets.count(),
         },
         # This is an intentionally shared regional signal, not a tenant data series.
-        "threat_score": cache.get("african_threat_score", {"score": 0, "level": "stable", "iocs_24h": 0}),
+        "threat_score": cache.get("african_threat_score"),
         "computed_at": now.isoformat(),
     }
 
@@ -163,23 +163,28 @@ def recent_activity(request):
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def threat_map_data(request):
-    """Données de la carte des menaces africaines."""
+    """Aggregate African threat indicators by country, without exposing point coordinates."""
+    from django.db.models import Count, Max, Q
     from africanwatch.apps.threat_intel.models import IOC
-    from django.db.models import Count
 
-    iocs_by_country = list(
+    country_rows = list(
         _scope_tlp(IOC.objects.filter(is_african_threat=True, is_active=True), request.user)
         .exclude(country_code="")
-        .values("country_code","country_name","latitude","longitude")
+        .values("country_code")
         .annotate(
+            country_name=Max("country_name"),
             total=Count("id"),
+            critical=Count("id", filter=Q(severity="critical")),
+            high=Count("id", filter=Q(severity="high")),
+            medium=Count("id", filter=Q(severity="medium")),
+            low=Count("id", filter=Q(severity="low")),
         )
-        .order_by("-total")[:30]
+        .order_by("-total", "country_code")[:60]
     )
-
     return Response({
-        "african_threats": iocs_by_country,
-        "total_countries": len(iocs_by_country),
+        "african_threats": country_rows,
+        "total_countries": len(country_rows),
+        "total_iocs": sum(row["total"] for row in country_rows),
         "computed_at": timezone.now().isoformat(),
     })
 
