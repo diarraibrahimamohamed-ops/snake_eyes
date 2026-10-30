@@ -114,15 +114,45 @@ def export_run_stix(request, pk):
     return Response(export_run(run))
 
 
+EVIDENCE_TLP_ORDER = ["white", "green", "amber", "red"]
+
+
+def _evidence_tlp_scope(queryset, user, field="tlp"):
+    if user.is_superuser or getattr(user, "role", "") == "super_admin":
+        return queryset
+    organization = getattr(user, "organization", None)
+    if organization is None:
+        return queryset.none()
+    level = getattr(organization, "tlp_level", "white")
+    index = EVIDENCE_TLP_ORDER.index(level) if level in EVIDENCE_TLP_ORDER else 0
+    return queryset.filter(**{f"{field}__in": EVIDENCE_TLP_ORDER[:index + 1]})
+
+
 class EvidenceRecordViewSet(OrgScopedMixin, viewsets.ReadOnlyModelViewSet):
-    """Read-only access to immutable evidence snapshots within the current tenant."""
+    """Read-only evidence access constrained by tenant and TLP visibility."""
     queryset = EvidenceRecord.objects.select_related("organization", "run", "observation", "source")
     serializer_class = EvidenceRecordSerializer
     permission_classes = [IsAuthenticated, CanOperateSecurityAssessment]
 
+    def get_queryset(self):
+        return _evidence_tlp_scope(super().get_queryset(), self.request.user)
+
 
 class EvidenceManifestViewSet(OrgScopedMixin, viewsets.ReadOnlyModelViewSet):
-    """Read-only access to versioned Merkle manifests within the current tenant."""
+    """Read-only manifest access; hide manifests containing any TLP-restricted proof."""
     queryset = EvidenceManifest.objects.select_related("organization", "run", "generated_by")
     serializer_class = EvidenceManifestSerializer
     permission_classes = [IsAuthenticated, CanOperateSecurityAssessment]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if user.is_superuser or getattr(user, "role", "") == "super_admin":
+            return queryset
+        organization = getattr(user, "organization", None)
+        if organization is None:
+            return queryset.none()
+        level = getattr(organization, "tlp_level", "white")
+        index = EVIDENCE_TLP_ORDER.index(level) if level in EVIDENCE_TLP_ORDER else 0
+        allowed = EVIDENCE_TLP_ORDER[:index + 1]
+        return queryset.exclude(run__evidence_records__tlp__in=[value for value in EVIDENCE_TLP_ORDER if value not in allowed]).distinct()
