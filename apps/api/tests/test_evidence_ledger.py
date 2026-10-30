@@ -180,6 +180,37 @@ def test_correlation_requires_shared_ioc_and_counts_distinct_sources(org):
 
 
 @pytest.mark.django_db
+def test_evidence_api_respects_organization_tlp_ceiling(org, api_client):
+    run = make_run(org, "tlp")
+    visible = make_observation(org, run, content="Green advisory")
+    visible.tlp = "green"
+    visible.save(update_fields=["tlp", "updated_at"])
+    record_observation_evidence(visible, run=run, acquisition_method="test_visible")
+
+    restricted = make_observation(
+        org,
+        run,
+        content="Red restricted advisory",
+        source_label="restricted provider",
+    )
+    restricted.tlp = "red"
+    restricted.save(update_fields=["tlp", "updated_at"])
+    record_observation_evidence(restricted, run=run, acquisition_method="test_restricted")
+
+    manifest = build_run_manifest(run)
+    assert manifest is not None
+
+    records_response = api_client.get("/api/v1/evidence-records/")
+    manifests_response = api_client.get("/api/v1/evidence-manifests/")
+
+    assert records_response.status_code == 200
+    assert records_response.data["count"] == 1
+    assert records_response.data["results"][0]["tlp"] == "green"
+    assert manifests_response.status_code == 200
+    assert manifests_response.data["count"] == 0
+
+
+@pytest.mark.django_db
 def test_evidence_endpoints_are_readable_by_authorized_tenant_user(org, api_client):
     run = make_run(org, "api")
     observation = make_observation(org, run)
