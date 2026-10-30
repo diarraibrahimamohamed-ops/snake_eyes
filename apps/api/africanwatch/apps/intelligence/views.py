@@ -71,6 +71,15 @@ class EvidenceRecordViewSet(OrgScopedMixin, viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        user = self.request.user
+        if not (user.is_superuser or getattr(user, "role", "") == "super_admin"):
+            organization = getattr(user, "organization", None)
+            tlp_order = ["white", "green", "amber", "red"]
+            level = getattr(organization, "tlp_level", "white")
+            clearance = tlp_order.index(level) if level in tlp_order else 0
+            queryset = queryset.filter(
+                observation__tlp__in=tlp_order[: clearance + 1]
+            )
         run_id = self.request.query_params.get("run")
         if run_id:
             queryset = queryset.filter(run_id=run_id)
