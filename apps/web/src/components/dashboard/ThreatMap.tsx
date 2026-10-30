@@ -29,7 +29,7 @@ const COLORS = {critical:"#ef4444",high:"#f97316",medium:"#eab308",low:"#22c55e"
 const project = (lat:number,lng:number) => ({x:12+((lng+20)/80)*556,y:12+((38-lat)/76)*396});
 const markerColor = (c:CountryThreat) => c.critical>0?COLORS.critical:c.high>0?COLORS.high:c.medium>0?COLORS.medium:COLORS.low;
 
-export function ThreatMap({countries=[]}:{countries?:CountryThreat[]}) {
+export function ThreatMap({countries=[],unavailable=false}:{countries?:CountryThreat[];unavailable?:boolean}) {
   const [selected,setSelected] = useState<string|null>(null);
   const plotted = countries.map(c=>({...c,center:CENTROIDS[(c.country_code||"").toUpperCase()]})).filter(c=>Boolean(c.center));
   const active = plotted.find(c=>c.country_code===selected);
@@ -55,7 +55,7 @@ export function ThreatMap({countries=[]}:{countries?:CountryThreat[]}) {
         <div className="mb-1 font-bold text-cyan-300">{active.country_name||active.country_code}</div><div className="text-gray-300">{active.total} IOC</div>
         <div className="mt-1 flex flex-wrap gap-x-2">{(["critical","high","medium","low"] as const).map(k=><span key={k} style={{color:COLORS[k]}}>{k}: {active[k]}</span>)}</div>
       </div>}
-      {countries.length===0&&<div className="absolute inset-0 flex items-center justify-center bg-[#07101f]/35 px-5 text-center text-xs text-gray-500">Aucun IOC géolocalisé par pays dans les données accessibles.</div>}
+      {countries.length===0&&<div className="absolute inset-0 flex items-center justify-center bg-[#07101f]/35 px-5 text-center text-xs text-gray-500">{unavailable?"Carte indisponible : le service de données n’a pas répondu.":"Aucun IOC géolocalisé par pays dans les données accessibles."}</div>}
     </div>
     <div className="mt-2 flex flex-wrap gap-3 text-[9px] font-mono">{Object.entries(COLORS).map(([k,v])=><span key={k} className="flex items-center gap-1 text-gray-400"><i className="h-2 w-2 rounded-full" style={{backgroundColor:v}}/>{k}</span>)}{countries.length>plotted.length&&<span className="text-gray-600">{countries.length-plotted.length} codes pays sans centroïde</span>}</div>
     <p className="mt-1 text-[8px] leading-relaxed text-gray-600">Les points représentent des centroïdes nationaux et des volumes d’IOC ; ils n’indiquent ni une cible ni la position exacte d’un attaquant.</p>
