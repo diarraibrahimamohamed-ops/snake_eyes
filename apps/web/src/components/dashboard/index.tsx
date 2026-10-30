@@ -20,7 +20,7 @@ const SEVERITY:Record<string,string>={critical:"border-red-400/30 bg-red-400/10 
 const Empty=({message}:{message:string})=><div className="flex h-full min-h-[60px] items-center justify-center px-2 text-center text-[10px] text-gray-600">{message}</div>;
 
 export function ThreatTicker({stats}:{stats:DashboardStats|null}) {
- const entries=[["IOCs / 24H",metric(stats?.threat_intelligence?.new_24h),"text-cyan-400"],["ALERTES OUVERTES",metric(stats?.soc?.alerts_open),"text-orange-400"],["INCIDENTS ACTIFS",metric(stats?.soc?.incidents_active),"text-red-400"],["MENACES AFRIQUE",metric(stats?.threat_intelligence?.african_threats),"text-yellow-400"]];
+ const entries=[["IOCs / 24H",fmt(stats?.threat_intelligence?.new_24h),"text-cyan-400"],["ALERTES OUVERTES",fmt(stats?.soc?.alerts_open),"text-orange-400"],["INCIDENTS ACTIFS",fmt(stats?.soc?.incidents_active),"text-red-400"],["MENACES AFRIQUE",fmt(stats?.threat_intelligence?.african_threats),"text-yellow-400"]];
  return <div className="mx-6 flex-1 overflow-hidden"><div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-mono"><b className="shrink-0 tracking-widest text-cyan-600">INDICATEURS :</b>{entries.map(e=><span key={e[0]} className="flex shrink-0 items-center gap-1"><b className={cn("tabular-nums",e[2])}>{e[1]}</b><span className="text-gray-500">{e[0]}</span></span>)}</div></div>;
 }
 export function StatsGrid({stats,loading,unavailable=false}:{stats:DashboardStats|null;loading:boolean;unavailable?:boolean}) {
