@@ -74,11 +74,7 @@ export function useDashboardData() {
    }
 
    if(mounted.current) {
-    setResourceStatus(prev=>({
-     stats:nextStatus.stats==="ready"?"ready":prev.stats==="loading"?"error":"error",
-     activity:nextStatus.activity==="ready"?"ready":prev.activity==="loading"?"error":"error",
-     map:nextStatus.map==="ready"?"ready":prev.map==="loading"?"error":"error"
-    }));
+    setResourceStatus(nextStatus);
     setLastSuccess(prev=>({
      stats:nextSuccess.stats||prev.stats,
      activity:nextSuccess.activity||prev.activity,
