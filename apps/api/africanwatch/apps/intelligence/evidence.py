@@ -128,6 +128,7 @@ def append_evidence_record(
             "label": source_name,
             "kind": source.kind if source else None,
             "url": source_url or "",
+            "registered_source_url": source.url if source else None,
             "reliability": float(source.reliability) if source else None,
         },
         "observation": {
@@ -177,6 +178,7 @@ def append_evidence_record(
     )
     locked_run.evidence_root_hash = merkle_root(hashes)
     locked_run.save(update_fields=["evidence_root_hash", "updated_at"])
+    run.evidence_root_hash = locked_run.evidence_root_hash
     return record
 
 
