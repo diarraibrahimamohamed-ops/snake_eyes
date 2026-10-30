@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 from africanwatch.security.permissions import CanOperateSecurityAssessment, org_scope
-from .models import CollectionTarget, CollectionSource, CollectionRun, IntelligenceObservation, IntelligenceRelation, ThreatForecast
+from .models import CollectionTarget, CollectionSource, CollectionRun, IntelligenceObservation, IntelligenceRelation, ThreatForecast, EvidenceRecord, EvidenceManifest
 from .serializers import *
 from .collectors import dns_enrichment, rdap_ip, rdap_domain, certificate_transparency
 from .tasks import run_collection_task, compute_forecast_task
@@ -112,3 +112,47 @@ def export_run_stix(request, pk):
         raise PermissionDenied("Collecte hors organisation")
     from .stix_export import export_run
     return Response(export_run(run))
+
+
+EVIDENCE_TLP_ORDER = ["white", "green", "amber", "red"]
+
+
+def _evidence_tlp_scope(queryset, user, field="tlp"):
+    if user.is_superuser or getattr(user, "role", "") == "super_admin":
+        return queryset
+    organization = getattr(user, "organization", None)
+    if organization is None:
+        return queryset.none()
+    level = getattr(organization, "tlp_level", "white")
+    index = EVIDENCE_TLP_ORDER.index(level) if level in EVIDENCE_TLP_ORDER else 0
+    return queryset.filter(**{f"{field}__in": EVIDENCE_TLP_ORDER[:index + 1]})
+
+
+class EvidenceRecordViewSet(OrgScopedMixin, viewsets.ReadOnlyModelViewSet):
+    """Read-only evidence access constrained by tenant and TLP visibility."""
+    queryset = EvidenceRecord.objects.select_related("organization", "run", "observation", "source")
+    serializer_class = EvidenceRecordSerializer
+    permission_classes = [IsAuthenticated, CanOperateSecurityAssessment]
+
+    def get_queryset(self):
+        return _evidence_tlp_scope(super().get_queryset(), self.request.user)
+
+
+class EvidenceManifestViewSet(OrgScopedMixin, viewsets.ReadOnlyModelViewSet):
+    """Read-only manifest access; hide manifests containing any TLP-restricted proof."""
+    queryset = EvidenceManifest.objects.select_related("organization", "run", "generated_by")
+    serializer_class = EvidenceManifestSerializer
+    permission_classes = [IsAuthenticated, CanOperateSecurityAssessment]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if user.is_superuser or getattr(user, "role", "") == "super_admin":
+            return queryset
+        organization = getattr(user, "organization", None)
+        if organization is None:
+            return queryset.none()
+        level = getattr(organization, "tlp_level", "white")
+        index = EVIDENCE_TLP_ORDER.index(level) if level in EVIDENCE_TLP_ORDER else 0
+        allowed = EVIDENCE_TLP_ORDER[:index + 1]
+        return queryset.exclude(run__evidence_records__tlp__in=[value for value in EVIDENCE_TLP_ORDER if value not in allowed]).distinct()

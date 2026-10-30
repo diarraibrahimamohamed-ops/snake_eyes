@@ -1,3 +1,4 @@
+import uuid
 from django.db import models
 from django.utils import timezone
 from africanwatch.apps.organizations.models import Organization, User, Asset, TimeStampedModel
@@ -121,3 +122,73 @@ class ThreatForecast(TimeStampedModel):
     basis = models.JSONField(default=dict, blank=True)
     statement = models.TextField()
     model = models.CharField(max_length=80, default="deterministic-threat-trend-v1")
+
+
+class EvidenceRecord(models.Model):
+    """Append-only snapshot of one intelligence acquisition."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.PROTECT, related_name="evidence_records")
+    run = models.ForeignKey(CollectionRun, on_delete=models.SET_NULL, null=True, blank=True, related_name="evidence_records")
+    observation = models.ForeignKey(IntelligenceObservation, on_delete=models.SET_NULL, null=True, blank=True, related_name="evidence_records")
+    source = models.ForeignKey(CollectionSource, on_delete=models.SET_NULL, null=True, blank=True, related_name="evidence_records")
+    source_label = models.CharField(max_length=255, blank=True)
+    source_url = models.URLField(blank=True)
+    acquisition_method = models.CharField(max_length=80, default="passive_collection")
+    captured_at = models.DateTimeField(default=timezone.now, db_index=True)
+    tlp = models.CharField(max_length=10, default="green")
+    payload = models.JSONField()
+    payload_sha256 = models.CharField(max_length=64, db_index=True)
+
+    class Meta:
+        ordering = ["captured_at", "id"]
+        indexes = [
+            models.Index(fields=["organization", "captured_at"], name="intel_ev_org_cap_idx"),
+            models.Index(fields=["run", "captured_at"], name="intel_ev_run_cap_idx"),
+        ]
+
+    def save(self, *args, **kwargs):
+        from django.core.exceptions import ValidationError
+        if not self._state.adding:
+            raise ValidationError("EvidenceRecord is append-only; create a new record instead of modifying it.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        from django.core.exceptions import ValidationError
+        raise ValidationError("EvidenceRecord is append-only and cannot be deleted through the application.")
+
+
+class EvidenceManifest(models.Model):
+    """Versioned Merkle commitment for the evidence captured by a collection run."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    organization = models.ForeignKey(Organization, on_delete=models.PROTECT, related_name="evidence_manifests")
+    run = models.ForeignKey(CollectionRun, on_delete=models.PROTECT, related_name="evidence_manifests")
+    version = models.PositiveIntegerField(default=1)
+    hash_algorithm = models.CharField(max_length=16, default="SHA-256")
+    merkle_algorithm = models.CharField(max_length=64, default="sha256-0x00-leaf-0x01-node-duplicate-last-v1")
+    evidence_count = models.PositiveIntegerField(default=0)
+    root_hash = models.CharField(max_length=64, db_index=True)
+    entries = models.JSONField(default=list)
+    signature_algorithm = models.CharField(max_length=32, default="none")
+    signature = models.TextField(blank=True)
+    signing_key_id = models.CharField(max_length=120, blank=True)
+    generated_at = models.DateTimeField(default=timezone.now, db_index=True)
+    generated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="generated_evidence_manifests")
+
+    class Meta:
+        ordering = ["-generated_at", "-version"]
+        constraints = [
+            models.UniqueConstraint(fields=["run", "version"], name="uniq_evidence_manifest_run_version"),
+        ]
+        indexes = [
+            models.Index(fields=["organization", "generated_at"], name="intel_evman_org_gen_idx"),
+        ]
+
+    def save(self, *args, **kwargs):
+        from django.core.exceptions import ValidationError
+        if not self._state.adding:
+            raise ValidationError("EvidenceManifest is append-only; create a new version instead of modifying it.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        from django.core.exceptions import ValidationError
+        raise ValidationError("EvidenceManifest is append-only and cannot be deleted through the application.")
