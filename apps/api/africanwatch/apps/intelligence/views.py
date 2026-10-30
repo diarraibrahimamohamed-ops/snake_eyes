@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 from africanwatch.security.permissions import CanOperateSecurityAssessment, org_scope
-from .models import CollectionTarget, CollectionSource, CollectionRun, IntelligenceObservation, IntelligenceRelation, ThreatForecast
+from .models import CollectionTarget, CollectionSource, CollectionRun, IntelligenceObservation, IntelligenceRelation, IntelligenceEvidence, ThreatForecast
 from .serializers import *
 from .collectors import dns_enrichment, rdap_ip, rdap_domain, certificate_transparency
 from .tasks import run_collection_task, compute_forecast_task
@@ -50,10 +50,31 @@ class CollectionRunViewSet(OrgScopedMixin, viewsets.ModelViewSet):
         run=self.get_object()
         if run.status not in {CollectionRun.Status.QUEUED, CollectionRun.Status.FAILED}: return Response({"error":"Run déjà lancé"}, status=409)
         task=run_collection_task.delay(str(run.id)); return Response({"run_id":str(run.id),"task_id":task.id}, status=202)
+
+    @action(detail=True, methods=["get"], url_path="verify-evidence")
+    def verify_evidence(self, request, pk=None):
+        from .evidence import verify_run_evidence
+
+        run = self.get_object()
+        return Response(verify_run_evidence(run))
 class ObservationViewSet(OrgScopedMixin, viewsets.ReadOnlyModelViewSet):
     queryset = IntelligenceObservation.objects.select_related("organization","source","run")
     serializer_class = IntelligenceObservationSerializer
     permission_classes=[IsAuthenticated]
+
+class EvidenceRecordViewSet(OrgScopedMixin, viewsets.ReadOnlyModelViewSet):
+    queryset = IntelligenceEvidence.objects.select_related(
+        "organization", "run", "observation", "source"
+    )
+    serializer_class = IntelligenceEvidenceSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        run_id = self.request.query_params.get("run")
+        if run_id:
+            queryset = queryset.filter(run_id=run_id)
+        return queryset
 class RelationViewSet(OrgScopedMixin, viewsets.ReadOnlyModelViewSet):
     queryset = IntelligenceRelation.objects.select_related("organization","left","right")
     serializer_class=IntelligenceRelationSerializer
