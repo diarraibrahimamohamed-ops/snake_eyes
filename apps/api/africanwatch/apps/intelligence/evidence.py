@@ -44,12 +44,13 @@ def _record_hash(
     *,
     run_id: str,
     sequence: int,
+    schema_version: int,
     captured_at: str,
     payload_sha256: str,
     previous_hash: str,
 ) -> str:
     material = {
-        "schema_version": SCHEMA_VERSION,
+        "schema_version": schema_version,
         "run_id": str(run_id),
         "sequence": sequence,
         "captured_at": captured_at,
@@ -150,6 +151,7 @@ def append_evidence_record(
     record_hash = _record_hash(
         run_id=str(locked_run.id),
         sequence=sequence,
+        schema_version=SCHEMA_VERSION,
         captured_at=captured_at_text,
         payload_sha256=payload_sha256,
         previous_hash=previous_hash,
@@ -192,7 +194,8 @@ def verify_run_evidence(run: CollectionRun) -> dict[str, Any]:
             "status": "empty",
             "valid": False,
             "record_count": 0,
-            "stored_merkle_root": run.evidence_root_hash,
+            "stored_merkle_root": None,
+            "legacy_root_present": bool(run.evidence_root_hash),
             "calculated_merkle_root": "",
             "errors": ["no_evidence_records"],
         }
@@ -205,6 +208,7 @@ def verify_run_evidence(run: CollectionRun) -> dict[str, Any]:
         if record.sequence != expected_sequence:
             errors.append(f"sequence_gap:{record.sequence}")
 
+        payload = record.payload if isinstance(record.payload, dict) else {}
         calculated_payload_hash = sha256_json(record.payload)
         if calculated_payload_hash != record.payload_sha256:
             errors.append(f"payload_hash_mismatch:{record.sequence}")
@@ -212,10 +216,29 @@ def verify_run_evidence(run: CollectionRun) -> dict[str, Any]:
         if record.previous_hash != expected_previous:
             errors.append(f"previous_hash_mismatch:{record.sequence}")
 
+        if record.schema_version != SCHEMA_VERSION:
+            errors.append(f"schema_version_mismatch:{record.sequence}")
+        if payload.get("run_id") != str(record.run_id):
+            errors.append(f"run_reference_mismatch:{record.sequence}")
+        if payload.get("organization_id") != str(record.organization_id):
+            errors.append(f"organization_reference_mismatch:{record.sequence}")
+        if payload.get("observation_id") != str(record.observation_id):
+            errors.append(f"observation_reference_mismatch:{record.sequence}")
+
+        payload_source = payload.get("source") if isinstance(payload.get("source"), dict) else {}
+        expected_source_id = str(record.source_id) if record.source_id else None
+        if payload_source.get("id") != expected_source_id:
+            errors.append(f"source_reference_mismatch:{record.sequence}")
+        if record.source_label != payload_source.get("label", ""):
+            errors.append(f"source_label_mismatch:{record.sequence}")
+        if record.source_url != payload_source.get("url", ""):
+            errors.append(f"source_url_mismatch:{record.sequence}")
+
         captured_at_text = record.captured_at.isoformat()
         calculated_hash = _record_hash(
             run_id=str(run.id),
             sequence=record.sequence,
+            schema_version=record.schema_version,
             captured_at=captured_at_text,
             payload_sha256=calculated_payload_hash,
             previous_hash=expected_previous,
