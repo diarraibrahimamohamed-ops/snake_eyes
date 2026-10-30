@@ -85,6 +85,7 @@ def test_evidence_record_is_append_only_and_manifest_detects_payload_tampering(o
     assert manifest is not None
     assert manifest.evidence_count == 1
     assert manifest.signature_algorithm == "Ed25519"
+    assert verify_manifest(manifest)["valid"] is False  # signed manifests require the public verification key
     verified = verify_manifest(manifest, signer.public_key())
     assert verified["valid"] is True
     assert verified["signature_valid"] is True
@@ -99,10 +100,17 @@ def test_evidence_record_is_append_only_and_manifest_detects_payload_tampering(o
 def test_repeat_retrieval_creates_new_acquisition_evidence_without_false_corroboration(org):
     first_run = make_run(org, "first")
     second_run = make_run(org, "second")
+    configured_source = CollectionSource.objects.create(
+        organization=org,
+        name="CERT-X",
+        kind=CollectionSource.Kind.CERT,
+        url="https://cert.example.test/advisory/42",
+        reliability=0.9,
+    )
 
     first_observation, first_created = save_observation(
         first_run,
-        None,
+        configured_source,
         "CERT advisory",
         "Ransomware advisory for a test environment",
         url="https://cert.example.test/advisory/42",
@@ -115,15 +123,17 @@ def test_repeat_retrieval_creates_new_acquisition_evidence_without_false_corrobo
         "CERT advisory",
         "Ransomware advisory for a test environment",
         url="https://cert.example.test/advisory/42",
-        provider_label="CERT-X",
-        acquisition_method="configured_rss",
+        provider_label="RDAP provider",
+        acquisition_method="built_in_passive_collector",
     )
 
     assert first_created is True
     assert second_created is False
     assert first_observation.id == second_observation.id
     assert EvidenceRecord.objects.filter(observation=first_observation).count() == 2
-    assert EvidenceRecord.objects.filter(run=second_run, source_label="CERT-X").count() == 1
+    second_evidence = EvidenceRecord.objects.get(run=second_run)
+    assert second_evidence.source is None
+    assert second_evidence.source_label == "RDAP provider"
     first_observation.refresh_from_db()
     assert first_observation.corroboration_count == 0
 
