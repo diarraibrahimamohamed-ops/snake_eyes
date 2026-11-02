@@ -36,7 +36,7 @@ up:
 	@echo "  Health    → http://localhost:8000/health/"
 	@echo "  Kibana    → http://localhost:5601"
 	@echo "  Offensive Lab → http://localhost:3000/offensive-lab"
-	@echo "  Pour le stack lourd : make lab"
+	@echo "  Documentation : docs/README.md"\n\t@echo "  Pour le stack lourd : make lab"
 	@echo "  Pour l'IA légère  : make ai"
 	@echo ""
 
