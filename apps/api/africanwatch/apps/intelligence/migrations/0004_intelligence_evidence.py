@@ -22,6 +22,12 @@ class Migration(migrations.Migration):
                 to="intelligence.collectionsource",
             ),
         ),
+        # Align the historical observation URL column with the model limit.
+        migrations.AlterField(
+            model_name="intelligenceobservation",
+            name="source_url",
+            field=models.URLField(blank=True, max_length=2000),
+        ),
         migrations.CreateModel(
             name="IntelligenceEvidence",
             fields=[
