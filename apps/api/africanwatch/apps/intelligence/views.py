@@ -44,7 +44,7 @@ class CollectionRunViewSet(OrgScopedMixin, viewsets.ModelViewSet):
         if any(src.organization_id != org.id for src in source_list) and not self.request.user.is_superuser: raise PermissionDenied("Source hors organisation")
         serializer.save(organization=org, requested_by=self.request.user, mode="passive")
     def get_permissions(self):
-        return [CanOperateSecurityAssessment()] if self.action in {"create","run"} else [IsAuthenticated()]
+        return [CanOperateSecurityAssessment()] if self.action in {"create", "run", "verify_evidence"} else [IsAuthenticated()]
     @action(detail=True, methods=["post"], permission_classes=[CanOperateSecurityAssessment])
     def run(self, request, pk=None):
         run=self.get_object()
@@ -67,7 +67,7 @@ class EvidenceRecordViewSet(OrgScopedMixin, viewsets.ReadOnlyModelViewSet):
         "organization", "run", "observation", "source"
     )
     serializer_class = IntelligenceEvidenceSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [CanOperateSecurityAssessment]
 
     def get_queryset(self):
         queryset = super().get_queryset()
