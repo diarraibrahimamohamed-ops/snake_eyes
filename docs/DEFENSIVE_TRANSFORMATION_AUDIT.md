@@ -1,164 +1,109 @@
-# Defensive transformation audit — snake_eyes / AfricaWatch
+# Audit de transformation défensive — snake_eyes / AfricaWatch
 
-Date: 2026-10-29
-First implementation merged to `main`: `0dba01a293e3e1abc0900be6d8238d08a1f381c9` (PR #1)
-Hardening branch: `post-merge-hardening`
-Baseline for the first implementation slice: `5ccdc41c4ccdfa51da1b4c16c3e25bae6119b501`
+**Date de cette révision : 2 novembre 2026**  
+**Dépôt :** `diarraibrahimamohamed-ops/snake_eyes`  
+**Référence `main` :** `93ccb717d26c36fc1eff2b761fbd54d399ed5e87` (intégration du dashboard live, PR #6).  
+**Snapshot candidat examiné :** `2f07cf7eb80b45afad895a205af67a94ff7330e2` (branche `feat/evidence-ledger-v1`, PR #8, avant les révisions documentaires).  
+**CI du snapshot candidat :** run #53, quatre jobs réussis : tests Django, syntaxe/lint API ciblé, ESLint/TypeScript/build Next.js et Trivy. [Détails du run](https://github.com/diarraibrahimamohamed-ops/snake_eyes/actions/runs/41372748323).
 
-## Executive decision
+> Cet audit distingue le code présent, les tests automatisés et les garanties opérationnelles à démontrer. Une CI verte ne certifie pas une architecture déployée.
 
-The repository is not an offensive toolkit overall: it already contains threat intelligence, OSINT, SOC, vulnerability management, malware/code analysis, organizational RBAC and an AI helper. The institution-grade pivot should preserve those useful defensive capabilities while removing the product's dependence on active scanning and credential-attack tooling.
+## Décision exécutive
 
-This document distinguishes **present in the repository**, **documented/claimed**, and **not yet demonstrated as production-ready**. A file or UI screen alone is not proof that an end-to-end feature works.
+AfricaWatch dispose d'une base défensive substantielle : organisations et actifs, SOC, Threat Intelligence, OSINT, import de rapports, analyse de fichiers et outils de sécurité. Le dashboard est désormais alimenté par l'API et l'Intelligence Center possède une première couche de traçabilité des acquisitions.
 
-## Repository map (241 tracked blobs on the baseline)
+Le dépôt **n'est pas certifié prêt pour une production institutionnelle**. Les plus grands risques résiduels sont l'exhaustivité du cloisonnement multi-tenant, l'isolation effective des workers, la gouvernance des preuves, les chemins réseau sortants et les garanties opérationnelles (secrets, sauvegardes, rétention, supervision et réponse à incident).
 
-- **Root and operations**: `.env.example`, `docker-compose.yml`, `Makefile`, `BUILD_MANIFEST.sha256`, `LICENSE`, `README.md`, `SECURITY_AUDIT.md`, CI workflow.
-- **Django API**: `apps/api/africanwatch/` — settings split into base/dev/prod/test, root URL routing, health endpoints and shared security helpers.
-- **Identity and tenancy**: `apps/organizations/` — Organization, User, Asset, audit models, serializers, views, auth/API routes and seed/management commands.
-- **Threat intelligence**: `apps/threat_intel/` — IOC/feed/campaign-related API, models, serializers and Celery tasks.
-- **OSINT**: `apps/osint/` — source/event ingestion, tenant scope, API and tasks.
-- **SOC**: `apps/soc/` — alert, incident, detection-rule models and APIs/tasks. MITRE fields exist on alerts, but a dedicated analyst hunting workbench and tested query language are not established by the inspected structure.
-- **Vulnerability management**: `apps/vulns/` — vulnerability/scan models, APIs and tasks. Current active scanning dependency should be replaced by normalized third-party report ingestion for the institutional default.
-- **AI engine**: `apps/ai_engine/` — views, URLs and tasks. Existing summarization/IOC extraction and heuristic forecast must not be described as validated predictive ML without benchmark evidence.
-- **Intelligence Center**: `apps/intelligence/` — classifiers, collectors, source models, services, tasks, tests and STIX export. STIX export code exists; a complete partner-facing TAXII server/export governance flow is not demonstrated.
-- **Malware & Code Lab**: `apps/malware_lab/` — upload/API, queue tasks, safe scanner, tests. The scanner contains size/archive checks and static analysis paths; production isolation still requires container-level validation and adversarial tests.
-- **Security Lab**: `apps/security_lab/` — OWASP checks, database posture, local SAST/secrets/container scans, tool definitions and UI. `local_tools.py` still includes an opt-in John-the-Ripper execution path and Hydra/sqlmap readiness plans; this conflicts with the desired clean institutional posture.
-- **Offensive Lab**: `apps/offensive_lab/` — engagement/target/job/finding/event models, runner, task queue, approval/preflight/kill-switch/scope hashing, API, tests and UI. Guardrails exist, but the server can still initiate active reconnaissance; this is the highest-priority product pivot.
-- **Frontend**: `apps/web/src/app/` — dashboard, intelligence, OSINT, SOC alerts/incidents, IOC, vulnerability, malware, security and offensive lab screens; shared components, API client, middleware and types.
-- **Infrastructure**: `infra/docker/`, Docker Compose, local security-lab directories and optional heavy profiles.
+## État vérifié par domaine
 
-## Feature status and evidence confidence
-
-| Capability | Evidence in repository | Assessment |
+| Domaine | État dans le code examiné | Limite ou travail restant |
 |---|---|---|
-| Tenant-scoped organizations/users/assets | Models, serializers, views and permission helpers | Implemented in code; must be regression-tested across every API, task and WebSocket path |
-| SOC alerts/incidents/detection rules | Models, routes, views, tasks and UI screens | Core CRUD/workflow exists; full SOAR orchestration and tested containment connectors are not evidenced |
-| Threat intelligence / IOC collection | Models, collectors, services, tasks, tests, STIX export | Substantial code exists; production source reliability, sharing governance and TAXII serving remain to validate/build |
-| OSINT collection | App, models, views, tasks and UI | Code exists; each connector needs source-specific tests, legal review, rate limits and provenance checks |
-| Malware/code analysis | Scanner, tasks, models, views, tests, UI | Static analysis paths exist; never execute uploaded samples; verify scanner is truly network-isolated in deployment |
-| Vulnerability management | Models, views, tasks, UI, normalized report-ingestion endpoints and parser/task tests | The report-ingestion workflow is implemented in code; production storage isolation, full integration acceptance and role authorization still require verification |
-| Security Lab | OWASP/configuration checks, DB posture, SAST/SCA, Gitleaks, Trivy helpers and format-only hash-policy audit | Password cracking was removed from the normal application path; verify that no legacy endpoint can invoke it and keep Hydra/sqlmap as non-executing plans only |
-| Legacy assessment runner | Active runner and historical task code remain in the repository | Launch paths are disabled by default at API/worker boundaries; verify each legacy route/task and keep production deployments on the disabled policy |
-| SOAR | SOC entities and asynchronous task infrastructure | No complete playbook model/approval/execution/audit lifecycle evidenced |
-| Threat sharing across CERTs | STIX bundle export helper | Export helper exists; production TAXII server, partner auth, TLP enforcement, revocation and sharing agreements not evidenced |
-| Deception/canary tokens | No dedicated app/model/route found in tracked paths | Not implemented; proposed future module |
-| Threat hunting workbench | MITRE tactic/technique fields and alert search foundations | Data fields exist; dedicated temporal hunting/query UX and validated ATT&CK mapping are not demonstrated |
-| Hash policy auditing | Bounded format-only policy checks | Code exists; validate the outputs and confirm it does not crack passwords, verify credentials, or expose hash values |
-| Lockout/MFA policy validation | Authentication stack and readiness plan | Dedicated safe policy validator is not demonstrated |
-| CI / reproducible quality gates | `.github/workflows/defensive-ci.yml`, Django/API tests, frontend build, Trivy scan | The PR validation workflow passed on the tested pre-merge tree; this hardening branch must pass a fresh run, and staging/infrastructure checks remain separate |
+| Organisations, rôles et actifs | Modèles, API et helpers RBAC présents | Couverture d'autorisation à démontrer sur toutes les routes, tâches et canaux |
+| SOC | Alertes, incidents, règles et tâches présents | Pas de SOAR complet avec approbations, compensation et connecteurs éprouvés |
+| Threat Intelligence | IOC, flux, collecteurs, observations et export STIX | Qualité des sources, gouvernance et partage inter-CERT à valider |
+| OSINT | Collecteurs et sources configurées présents | Tests et garde-fous spécifiques à chaque connecteur sortant |
+| Dashboard | Données API, carte agrégée par pays, états indisponibles | Tests staging sur données réelles et habilitations TLP multi-organisations |
+| Import de rapports | Formats Nmap XML, Nuclei JSON/JSONL, Nessus XML, Shodan JSON/CSV ; traitement Celery | ACL de stockage, rétention, volumétrie et restauration à tester en environnement cible |
+| Evidence Ledger | Entrées append-only au niveau applicatif, SHA-256, chaîne par collecte et racine Merkle | Ancrage externe, clés, vérification hors ligne et chaîne de conservation formelle absents |
+| Malware & Code Lab | Quarantaine, limites d'archives, ClamAV/YARA et analyse statique | Le fallback d'analyse dans le worker empêche de conclure à une isolation réseau uniforme |
+| Security Lab | Contrôles Web/API, DB, SAST/SCA/secrets, audit de format de hash | Les outils optionnels doivent être disponibles et les profils testés sur des cibles de laboratoire |
+| Offensive Lab | Runners de reconnaissance et contrôles de périmètre présents | Exécution active désactivée par défaut ; disponibilité des binaires et isolation de runner non garanties |
+| Prévision / AI Engine | Règles, résumés et tendances heuristiques | Pas de benchmark de calibration, précision/rappel ou dérive démontré |
+| Supply chain | CI et scan Trivy du dépôt | SBOM par version, signature d'artefacts et politique complète de mise à jour à compléter |
 
-## Institutional risks to resolve before deployment
+## Carte du dépôt
 
-1. **Active scan ambiguity**: an institutional product should not initiate external scans by default. Import scanner reports and correlate their findings instead.
-2. **Credential attack tool presence**: remove John/Hashcat/Hydra/sqlmap execution or operational workflows from the production application. Keep SAST/SCA, secret detection and authentication-policy checks.
-3. **Multi-tenant boundaries**: test object-level access, unassigned organization records, task ownership, WebSocket groups, report downloads and admin exceptions.
-4. **Untrusted uploads**: cap bytes, archive expansion, member count, path traversal, MIME mismatch and processing time; isolate the worker with no network, non-root, read-only root filesystem, resource limits and no Linux capabilities.
-5. **Outbound requests**: centralize SSRF-safe URL/IP validation, DNS rebinding protections, redirect revalidation, response caps and outbound allowlisting.
-6. **Audit integrity**: a hash chain detects tampering only if the chain's head is anchored/protected independently. Document retention, access control, time synchronization and export verification.
-7. **AI claims**: label summaries as assistance and forecast scores as heuristics until a documented benchmark validates precision, recall, calibration and drift.
-8. **Institutional governance**: add data classification/TLP enforcement, retention/deletion policy, case evidence chain, approvals for response actions, incident runbooks, backup/restore drills and operational SLAs.
-9. **Supply chain**: the README license badge and wording now match the repository's GPL v2 LICENSE; generate an SBOM and dependency vulnerability report for each release.
-10. **Deployment posture**: Compose includes development defaults and a development Django settings target. Production must use production settings, strong secrets, TLS, restricted service networking and managed credentials.
+- `apps/api/africanwatch/apps/organizations` : identités, organisations, actifs et audit.
+- `threat_intel`, `osint`, `intelligence` : IOC, sources, collectes, observations, relations, STIX et preuves.
+- `soc` : alertes, incidents et règles de détection.
+- `vulns` : vulnérabilités et ingestion de rapports tiers.
+- `dashboard` : agrégats API pour le frontend.
+- `malware_lab` : quarantaine et analyse de fichiers.
+- `security_lab` : contrôles de sécurité et analyses locales.
+- `offensive_lab` : workflow d'assessment autorisé protégé par politique serveur.
+- `apps/web` : interface Next.js, composants, stores et clients API.
+- `infra`, `docker-compose.yml`, `Makefile` : images, services et exploitation locale.
 
-## Work completed in the first implementation slice
+## Correctifs et garanties présents dans le snapshot
 
-- Added `ACTIVE_ASSESSMENTS_ENABLED=False` as the default server policy and documented it in `.env.example`.
-- The active-assessment API preflight reports the policy state, and the API launch policy rejects jobs while the feature is disabled.
-- The Celery worker independently blocks queued jobs when the feature flag is off, preventing previously queued work from bypassing the API gate.
-- Added a regression test for the disabled default and updated the existing launch test to opt in explicitly for its isolated test scenario.
-- Replaced the John-the-Ripper execution path with a bounded hash-format policy audit. It reports format counts and legacy-format warnings only; it does not crack passwords, verify credentials, or return hash values. Removed offensive tools from the Security Lab's availability inventory.
-- Updated Security Lab UI language to reflect format-only auditing and updated the legacy assessment screen to disclose the disabled-by-default institutional policy.
-- Updated README positioning and added this audit/roadmap.
-- Aligned the README license badge and licensing description with the repository's GPL v2 `LICENSE` file.
+### Dashboard et données présentées
 
-**Validation status:** this paragraph originally described the first draft before CI had run and is superseded by `Validation status after merge` below. The initial implementation is merged into `main`; current test results and remaining staging prerequisites are recorded in that later section. No production certification is implied.
+Le dashboard ne doit plus synthétiser de données de démonstration comme si elles étaient réelles. Les statistiques, alertes, IOC et événements sont hydratés depuis l'API. La carte renvoie des agrégats nationaux et n'expose pas les coordonnées individuelles des IOC par cette route. Les centroïdes nationaux sont des points de représentation, pas une localisation d'incident.
 
-## Ingestion Hub — first implementation slice
+### Evidence Ledger
 
-The branch now contains the initial Django API pipeline under the existing `vulns` app:
+`save_observation` ajoute un enregistrement par acquisition, même si l'observation est déjà connue. L'empreinte du payload, le chaînage et la racine Merkle sont recalculés à partir des preuves du run. Les routes de lecture et de vérification sont limitées au tenant, filtrées par TLP et protégées par un rôle minimal analyste.
 
-- `POST /api/v1/report-ingestions/upload/` — multipart upload with `source_type` and `file`; requires an authenticated analyst-level role and an organization.
-- `GET /api/v1/report-ingestions/` and `GET /api/v1/report-ingestions/{uuid}/` — tenant-scoped report status and metadata.
-- `GET /api/v1/report-findings/?report={uuid}` — normalized findings, tenant-scoped.
-- Supported source types: `nmap_xml`, `nuclei_json`, `nuclei_jsonl`, `nessus_xml`, `shodan_json`, `shodan_csv`.
-- Upload limit: 10 MiB; parser limit: 20,000 findings per report. XML DTD/entity declarations are rejected. The original report is stored with SHA-256 metadata and duplicate content is rejected per tenant.
-- Processing runs as a Celery task. It never launches a scanner or makes network requests. A finding is linked only by exact normalized match to an active asset in the same organization; unknown targets stay unlinked for review. It never creates an asset from report data.
-- Normalized evidence is retained separately from analyst-managed vulnerability status/remediation. Audit events record upload and processing outcomes.
-- The legacy vulnerability scan task and scheduled scanner now also obey `ACTIVE_ASSESSMENTS_ENABLED=False`; scheduled scans are skipped and direct queued scan jobs are marked blocked/failed by policy.
+La migration `0004_intelligence_evidence` crée le modèle, ajoute la relation `CollectionRun.sources` manquante dans l'historique des migrations et met à jour la longueur de `IntelligenceObservation.source_url`. La protection append-only reste au niveau applicatif/ORM ; elle ne résiste pas à un administrateur DB privilégié. La racine étant stockée dans la même base, l'ancrage externe demeure un prérequis pour une garantie plus forte.
 
-### Second implementation slice — UI, scanner removal, and dependency hardening
+### Évaluations actives
 
-- Added `/report-ingestion`: report upload, format selection, progress/status refresh, import history, finding table, exact-match status, and SHA-256 evidence display. The API client now exposes list/detail/upload/finding helpers.
-- Replaced the offensive-lab page with a defensive policy notice and links to report ingestion and vulnerability management; removed Offensive Lab from the primary navigation.
-- Removed the `nmap` executable from the API Docker image so the normal application container does not ship with an active network scanner.
-- Prevented unexpected report-worker exceptions from exposing raw infrastructure or SQL details to the UI; detailed exception data remains in server logs while users receive a safe diagnostic message.
-- Added a tenant-isolation regression test for report findings, corrected the avatar migration to match the model's nullable field, and fixed an undefined type annotation in the existing non-exploitative attack-surface helper.
-- Upgraded Django and Pillow to patched versions, then upgraded Django REST Framework, cryptography, dnspython and lxml based on the current Trivy findings. Django 5.2 required upgrading django-celery-beat as well.
-- CI's API lint job now passes with repository-wide syntax/undefined-name checks and a focused import check on defensive modules. Full repository Ruff style debt is not hidden; the CI workflow separates that pre-existing debt from checks for runtime-breaking syntax and undefined names.
-- The frontend ESLint configuration now explicitly registers the TypeScript ESLint plugin; the earlier run failed because the rule was configured but not registered.
+`ACTIVE_ASSESSMENTS_ENABLED` vaut `False` par défaut. L'API vérifie la politique et le worker Celery la réévalue avant l'exécution, afin qu'un job déjà en file ne contourne pas la désactivation. `LAB_MODE` est également requis côté serveur pour les cibles privées. Le code du runner demeure présent et ne doit pas être interprété comme autorisation d'exécuter des évaluations sur Internet.
 
-### Validation status after merge
+### Import et analyse des fichiers
 
-The first defensive implementation slice was merged into `main` in commit
-`0dba01a293e3e1abc0900be6d8238d08a1f381c9` (PR #1). The PR's GitHub Actions run
-passed on the pre-merge tested tree; this is not a separate test run against the
-merge commit itself.
+L'import de rapports traite les fichiers comme des données, limite leur taille et le nombre de constats, rejette les déclarations DTD/entités dans Nessus XML et lie les constats aux actifs existants du tenant. Le scanner malware inspecte les fichiers sans les importer comme modules ni les exécuter. Cependant, si le scanner dédié ne remet pas son résultat dans le délai prévu, le task Celery peut appeler directement `scan_file`. Le worker standard n'est pas isolé par `network_mode: none` : il faut donc valider ou supprimer ce fallback avant de prétendre à une isolation complète.
 
-The current `post-merge-hardening` branch adds role-aware permissions to the
-vulnerability API, restricts risk acceptance and deletion to organization
-administrators, and closes the Nessus XML DTD inspection-window gap. Regression
-tests and CI lint coverage are included for those changes; they must pass before
-this branch is merged.
+### Security Lab et outils d'identifiants
 
-This repository is **not production-certified**. Staging still needs explicit
-acceptance of tenant/object-level permissions, upload storage ACLs and retention,
-worker isolation/no-network policy, backup/restore, audit evidence retention,
-resource-limit behavior, and all deployed settings. The baseline also has
-repository-wide Ruff style debt; CI currently gates global syntax/undefined names
-and targeted checks, not complete cleanup of all historical lint findings.
+L'audit local des identifiants classe uniquement les formats de hash reconnus et produit des avertissements de politique. Le backend ne lance plus John the Ripper ni Hashcat. Les profils Hydra et sqlmap sont des plans de préparation non exécutants ; ils ne lancent pas de tentatives réseau ni d'exploitation.
 
-## Implementation plan
+## Risques résiduels prioritaires
 
-### Phase 0 — safety boundary and inventory (started on this branch)
-- Add an explicit server-side feature flag that disables active offensive assessments by default.
-- Enforce the flag at API preflight/launch and again in the Celery worker so a queued job cannot bypass the policy.
-- Add regression tests for the disabled-by-default boundary.
-- Keep the existing main branch unchanged; all changes go through this branch.
+1. **Contrôle d'accès multi-tenant** — compléter les tests IDOR/permissions objet pour chaque viewset, action, export, téléchargement, tâche Celery, groupe WebSocket et cache.
+2. **Workers et réseau sortant** — séparer les queues de confiance, contrôler DNS/redirects/SSRF, limiter les destinations, les privilèges, les ressources et l'accès aux secrets.
+3. **Malware scanner** — rendre obligatoire le scanner isolé ou retirer le fallback dans le worker ; vérifier que les volumes et les droits correspondent au modèle attendu.
+4. **Evidence Ledger** — ajouter une ancre indépendante des hashes, une gestion externe de clés, une vérification hors ligne et des exercices de restauration.
+5. **Stockage et données** — formaliser chiffrement, ACL, rétention, suppression, sauvegarde, restauration et accès opérateur.
+6. **Prévisions et IA** — documenter les limites, les données d'entraînement/heuristiques et un protocole d'évaluation avant toute affirmation prédictive.
+7. **Production** — ne pas utiliser le Compose de développement tel quel ; imposer settings prod, TLS, secrets gérés, réseau restreint, non-root et supervision.
+8. **Supply chain** — générer un SBOM versionné, analyser les images construites et définir la signature/provenance des artefacts.
 
-### Phase 1 — report ingestion hub
-- Add bounded, authenticated uploads for Nmap XML, Nuclei JSON/JSONL, Nessus XML and Shodan JSON/CSV.
-- Parse in an isolated worker; reject malformed/oversized input and never execute uploaded content.
-- Normalize findings into one schema: source, external asset, timestamp, CVE/CWE, severity, evidence, scanner reference, confidence and remediation.
-- Resolve imported targets only against the tenant's registered assets; unmatched targets remain untrusted/unlinked pending review.
-- Deduplicate, preserve original report hash, and correlate findings with IOC/threat intelligence.
+## Plan d'acceptation recommandé
 
-### Phase 2 — clean defensive Security Lab
-- Remove JtR execution path and any Hashcat invocation from API workers.
-- Implement hash-policy audit based on metadata/prefixes/known hash formats only; never crack or verify user passwords.
-- Replace Hydra readiness with a local configuration validator for MFA, rate limits, lockout, throttling and alerting.
-- Fold SQL injection checks into static SAST/SCA and OpenAPI review, not remote exploitation.
-- Make UI labels reflect exactly what runs, what is plan-only and what is unavailable.
+### Avant tout pilote
 
-### Phase 3 — operational SOC
-- Implement SOAR playbooks as versioned, reviewed workflows with dry-run, approval gates, idempotency, allowlisted connectors, rollback/compensation and immutable action records.
-- Add hunting workbench with bounded time windows, searchable normalized events, ATT&CK mappings with source confidence, and saved queries.
-- Add canary tokens only with tenant-controlled generation, scoped callbacks and alerting; do not use tokens to track people outside authorized assets.
+- appliquer les migrations sur une base vierge et sur une copie d'une base existante ;
+- tester les cinq rôles avec au moins deux organisations, y compris les accès directs par UUID ;
+- vérifier les limites TLP des preuves, IOC, agrégats, événements et exports ;
+- exécuter une collecte synthétique avec plusieurs acquisitions, puis vérifier la chaîne et la racine ;
+- vérifier que le scanner malware ne peut emprunter un chemin non isolé ;
+- tester une restauration de sauvegarde et la cohérence des preuves ;
+- vérifier secrets, TLS, CORS, ALLOWED_HOSTS, accès aux volumes et réseau sortant.
 
-### Phase 4 — trusted inter-CERT sharing
-- Add partner identities, mutual authentication, explicit sharing agreements, TLP handling, redaction and revocation.
-- Provide STIX/TAXII export/import with pagination, filtering, rate limits, signing/verification and audit.
-- Never share TLP:RED data outside the explicitly authorized recipients.
+### Avant production institutionnelle
 
-### Phase 5 — institution-grade assurance
-- Restore green CI; migrations, Ruff/lint, tests, dependency scanning, container scanning and SBOM.
-- Add tenant-isolation tests for all API objects, Celery tasks and channels.
-- Add threat-model, incident response runbooks, backup/restore proof, audit-chain verification and performance benchmarks.
-- Conduct a controlled pilot with synthetic incidents and authorized telemetry before production claims.
+- réaliser une revue de menace et un audit indépendant ;
+- produire SBOM et rapports de vulnérabilités des images ;
+- définir rétention, classification, gouvernance de partage TLP et procédures d'incident ;
+- réaliser un pilote sur données synthétiques et télémétrie autorisée ;
+- établir des objectifs de disponibilité, performance, sauvegarde, support et réponse opérationnelle.
 
-## Acceptance criteria for this branch
+## Références de validation
 
-- Active assessment is denied unless explicitly enabled by an operator in a non-production isolated environment.
-- The Celery worker independently enforces the same policy.
-- Tests cover both the denied default and explicitly enabled test configuration.
-- No claim of full production readiness is made until integration tests and deployment isolation are executed.
+- [README et démarrage](../README.md)
+- [Intelligence Center et Evidence Ledger](INTELLIGENCE_CENTER.md)
+- [Security Lab](SECURITY_LAB.md)
+- [Malware & Code Lab](MALWARE_CODE_LAB.md)
+- [Workflow CI](../.github/workflows/defensive-ci.yml)
+- [Run CI #53 — snapshot de code testé](https://github.com/diarraibrahimamohamed-ops/snake_eyes/actions/runs/41372748323)

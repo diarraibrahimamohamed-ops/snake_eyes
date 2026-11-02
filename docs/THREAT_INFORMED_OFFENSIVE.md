@@ -1,62 +1,65 @@
-# Threat-Informed Offensive Lab
+# Threat-Informed Assessment
 
-Cette couche vise à reproduire le raisonnement d'un pentester/red-team au niveau de la **surface d'attaque**, pas à automatiser une compromission.
+Cette couche structure une évaluation défensive autour de la surface d'exposition et de la visibilité SOC. Elle vise à améliorer la qualité des observations et des preuves, pas à automatiser une compromission.
 
-## Boucle d'assessment
+## Statut d'exécution
 
-`pré-engagement -> préflight -> reconnaissance -> posture -> exposition -> corrélation -> drift -> visibilité SOC -> remédiation -> re-test`
+Le dépôt contient des profils de reconnaissance et d'analyse de posture. Les évaluations actives sont désactivées par défaut par `ACTIVE_ASSESSMENTS_ENABLED=False`, à la fois à l'API et dans le worker Celery. Ce document décrit les capacités du code et leurs garde-fous, pas une autorisation d'exécuter une mission.
 
-### Vue attaquant
+## Boucle d'analyse
 
-Le moteur cherche notamment :
+```text
+pré-engagement -> préflight -> observations autorisées -> posture
+ -> corrélation -> comparaison temporelle -> visibilité SOC
+ -> remédiation -> revalidation
+```
 
-- points d'entrée réseau observables ;
-- services qui méritent une validation prioritaire ;
-- mauvaises configurations Web, TLS et DNS ;
-- indices d'exposition de secrets sans persister leur contenu ;
-- changements de surface entre deux assessments ;
-- chaînes d'exposition plausibles ;
-- preuves nécessaires avant de qualifier un risque.
+### Vue exposition
+
+Les analyses présentes dans le code peuvent examiner, selon le profil :
+
+- résolution DNS et posture SPF/DMARC/CAA ;
+- réponses HTTP, en-têtes et cookies ;
+- certificat et protocole TLS ;
+- ports TCP/services lorsque le runner et les binaires sont activés ;
+- changements entre deux évaluations ;
+- chaînes d'exposition hypothétiques ;
+- motifs ressemblant à des secrets, sans conserver la valeur détectée.
 
 ### Vue défenseur
 
-Chaque profil retourne également une estimation de la télémétrie attendue : DNS, reverse proxy, HTTP, TLS, firewall, WAF/IDS, EDR/SIEM.
+Les résultats peuvent inclure les sources de télémétrie qu'une équipe devrait examiner : DNS, reverse proxy, HTTP, TLS, firewall, WAF/IDS, EDR et SIEM. Il s'agit d'attentes analytiques, pas de la preuve que ces systèmes ont effectivement observé l'événement.
 
-Le but est de pouvoir exécuter une mission du type :
+## Profils recensés dans le code
 
-1. vérifier ce que l'équipe offensive peut observer ;
-2. vérifier ce que le SOC devrait voir ;
-3. mesurer les écarts de détection ;
-4. corriger ;
-5. refaire exactement le même assessment ;
-6. comparer le résultat au job précédent.
-
-## Profils
-
-| Profil | But |
+| Profil | Objectif |
 |---|---|
-| `dns_recon` | Surface DNS technique |
-| `dns_posture` | SPF/DMARC/CAA observés |
-| `web_recon` | Réponse HTTP et hardening |
-| `web_posture` | CORS, cookies, méthodes annoncées, HSTS, fichiers canoniques |
-| `tls_audit` | TLS/certificat |
-| `port_recon` | Découverte TCP + service légère |
-| `exposure_audit` | Corrélation surface |
-| `adversary_recon` | Reconnaissance composite orientée menace |
-| `exposure_chain` | Chaînes d'exposition hypothétiques |
-| `nuclei_safe` | Contrôles Nuclei non intrusifs autorisés |
-| `combined_recon` | Alias composite de reconnaissance |
+| `dns_recon` | Résolution DNS |
+| `dns_posture` | Observations SPF/DMARC/CAA |
+| `web_recon` | Réponse HTTP et posture |
+| `web_posture` | CORS, cookies, méthodes annoncées, HSTS et chemins fixes |
+| `tls_audit` | Protocole et certificat TLS |
+| `port_recon` | Reconnaissance TCP légère |
+| `exposure_audit` | Corrélation de surface |
+| `adversary_recon` | Vue composite de reconnaissance |
+| `exposure_chain` | Relations d'exposition hypothétiques |
+| `nuclei_safe` | Contrôles restreints via Nuclei si configuré |
+| `combined_recon` | Profil composite |
 
-## Limites
+La disponibilité effective dépend de la configuration, des dépendances et de la politique d'exécution. La CI ne valide pas le fonctionnement d'un scanner réseau sur une cible réelle.
 
-Le moteur n'automatise pas :
+## Limites d'interprétation
 
-- exploitation de vulnérabilités ;
-- brute-force ou credential stuffing ;
-- payload delivery ;
-- persistance ;
-- mouvement latéral ;
-- évasion/anti-détection ;
-- exécution de commandes arbitraires.
+Une exposition détectée n'est pas nécessairement exploitable. Un motif de secret n'est pas une preuve qu'un secret est valide. Une chaîne d'exposition est une hypothèse à confirmer. Une attente de télémétrie n'est pas un événement SIEM observé. Les résultats doivent être corroborés avant d'être qualifiés de finding confirmé.
 
-Pour un laboratoire isolé, `LAB_MODE=True` est requis côté serveur et `lab_mode=True` côté engagement pour autoriser les cibles privées.
+## Conditions d'un pilote isolé
+
+Avant d'activer les évaluations dans un laboratoire :
+
+- autorisation écrite et scope vérifiable ;
+- actifs de test appartenant à l'organisation ;
+- fenêtre de test, quotas et arrêt opérateur ;
+- politique serveur activée uniquement dans l'environnement isolé ;
+- `LAB_MODE=True` côté serveur si des cibles privées sont utilisées ;
+- worker et réseau sortant isolés, observables et limités ;
+- preuves et journaux conservés avec horodatage et rétention définis.

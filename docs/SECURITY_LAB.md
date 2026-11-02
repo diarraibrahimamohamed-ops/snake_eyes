@@ -1,52 +1,73 @@
-# AfricaWatch — Security Assessment Lab
+# AfricaWatch — Security Lab
 
-Le Security Lab combine analyse applicative, audit de base de données, supply-chain, secrets et préparation d'assessments offensifs.
+## Mission et limites
+
+Le Security Lab regroupe des contrôles défensifs applicatifs, API, base de données, code, dépendances, secrets et configuration. La présence d'un profil dans le catalogue ne garantit pas que son exécutable soit installé ni qu'un contrôle ait été réalisé.
+
+Les profils sont soumis à une authentification, au cloisonnement organisationnel et aux rôles applicatifs. Les actions de création/exécution sont réservées aux rôles opérationnels autorisés ; les droits effectifs doivent être testés dans l'environnement déployé.
 
 ## Référentiels
 
-- OWASP Top 10:2025 : A01 Broken Access Control, A02 Security Misconfiguration, A03 Software Supply Chain Failures, A04 Cryptographic Failures, A05 Injection, A06 Insecure Design, A07 Authentication Failures, A08 Software or Data Integrity Failures, A09 Security Logging & Alerting Failures, A10 Mishandling of Exceptional Conditions.
+- OWASP Top 10:2025.
 - OWASP API Security Top 10:2023.
-- OWASP ASVS 5.0.0 comme standard de vérification détaillée.
-- OWASP WSTG comme méthodologie de tests.
+- OWASP ASVS 5.0.0 comme référentiel de vérification.
+- OWASP WSTG comme méthodologie de test.
 
-Le module ne prétend pas détecter automatiquement tout l'OWASP Top 10 : les risques de conception et de logique métier exigent notamment une revue humaine.
+Le module ne détecte pas automatiquement l'ensemble de ces référentiels. Les défauts de conception, les contrôles d'accès et la logique métier exigent une revue humaine et des tests adaptés.
 
-## Modules
+## Profils de contrôle présents
 
-### Web/API
+### Web et API
 
-`owasp_web` vérifie des contrôles HTTP observables : HTTPS, HSTS, CSP, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, CORS et cookies sensibles. `owasp_api` analyse un document OpenAPI et repère l'absence de schémas de sécurité, les serveurs HTTP et les problèmes d'inventaire déclaratif.
-
-`zap_baseline_plan` prépare un DAST ZAP baseline ; l'intégration API ne lance pas de scan actif.
+- `owasp_web` : observe notamment HTTPS, HSTS, CSP, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, CORS et cookies.
+- `owasp_api` : examine un document OpenAPI, notamment les schémas de sécurité et les déclarations de serveurs.
+- `zap_baseline_plan` : prépare un plan ZAP baseline ; ce profil ne doit pas être décrit comme un scan DAST actif lancé par l'API.
 
 ### Bases de données
 
-`db_posture` utilise un profil DSN défini côté serveur (`SECURITY_DB_DSN_<PROFILE>`) et exécute uniquement des requêtes PostgreSQL en lecture seule : SSL, superusers, privilèges de création de rôles et CREATE accordé à PUBLIC sur les schémas non système.
+`db_posture` utilise un profil DSN défini côté serveur (`SECURITY_DB_DSN_<PROFILE>`) et réalise des contrôles PostgreSQL en lecture seule, par exemple SSL, superusers et privilèges de création de rôles/schémas. Le DSN ne doit jamais être fourni librement par un utilisateur via une requête.
 
-`db_code_surface` / `local_code` permettent de faire passer la base de code par les règles SAST/SCA disponibles localement.
+### Code, conteneurs et secrets
 
-### Identifiants
+- `local_code` : lance Semgrep si le binaire est disponible dans l'environnement d'exécution.
+- `local_container` : lance Trivy filesystem si disponible.
+- `local_secrets` : lance Gitleaks avec sortie expurgée si disponible.
+- `toolchain` : vérifie la disponibilité de certains outils locaux.
 
-`local_credential` est strictement hors-ligne. John the Ripper est désactivé par défaut et ne peut lire que des fichiers sous `CREDENTIAL_LAB_ROOT`. Aucun test d'authentification réseau n'est effectué par l'API.
+Les chemins sont résolus sous les racines de laboratoire définies côté serveur et séparés par organisation. Les outils ne sont pas garantis installés dans toutes les images ou tous les environnements.
 
-Hashcat est déclaré dans le catalogue pour une station dédiée, mais n'est pas lancé par le backend.
+### Audit de formats de hash
 
-### Outils offensifs
+`local_credential` est un **audit de politique de format uniquement**. Le backend lit un fichier local de hashes, classe les formats reconnus et produit des avertissements sur les formats historiques. Il ne lance pas John the Ripper ou Hashcat, ne tente pas de casser les mots de passe, ne vérifie pas des identifiants et ne retourne pas les valeurs de hash dans le résultat.
 
-Hydra et sqlmap sont présents en mode `readiness-only` : le système produit le cadrage, les préconditions et la traçabilité attendue, sans envoyer de rafales d'identifiants ni automatiser l'exploitation réseau.
+Les fichiers sont limités à 5 Mio et à 100 000 entrées. Les chemins doivent rester sous `CREDENTIAL_LAB_ROOT/<organization_id>`.
 
-Nmap et Nuclei restent limités par l'Offensive Lab existant, l'engagement, le périmètre, le kill-switch et les profils autorisés.
+### Profils de préparation non exécutants
 
-## Lancement
+- `hydra_readiness` : prépare les préconditions d'un audit de politique d'authentification ; aucune tentative de connexion réseau n'est effectuée.
+- `sqlmap_readiness` : prépare le cadrage d'une vérification d'injection ; aucune exploitation automatisée n'est effectuée.
 
-Créer une revue via `POST /api/v1/security-reviews/` avec un `profile` et, selon le profil, un `asset` ou un `input_ref`, puis appeler `POST /api/v1/security-reviews/<id>/run/`.
+Ces profils sont des plans, pas des résultats de pentest.
 
-Pour les entrées locales, les chemins sont relatifs aux racines du labo montées en lecture seule.
+## Création d'une revue
 
-## Références officielles
+Le routeur expose les revues sous `/api/v1/security-reviews/`. Une revue est créée avec un profil et, selon le cas, un actif ou une référence d'entrée locale. L'action `run` déclenche une tâche Celery pour les profils implémentés.
 
-- OWASP Top 10:2025: https://top10.owasp.org/2025/
-- OWASP ASVS 5.0.0: https://owasp.org/projects/asvs
-- OWASP API Security Top 10:2023: https://api-security.owasp.org/editions/2023/
-- OWASP WSTG: https://wstg.owasp.org/
-- ZAP Baseline: https://www.zaproxy.org/docs/docker/baseline-scan/
+Exemple de séquence API (adapter le JSON au serializer et au profil choisi) :
+
+```text
+POST /api/v1/security-reviews/
+POST /api/v1/security-reviews/<uuid>/run/
+GET  /api/v1/security-reviews/<uuid>/
+GET  /api/v1/security-reviews/<uuid>/findings/
+```
+
+Pour les profils locaux, les fichiers doivent déjà être présents sous les racines montées côté serveur ; un chemin client arbitraire n'est pas une source valide.
+
+## Références
+
+- OWASP Top 10:2025 — https://top10.owasp.org/2025/
+- OWASP ASVS — https://owasp.org/www-project-application-security-verification-standard/
+- OWASP API Security Top 10:2023 — https://owasp.org/API-Security/
+- OWASP WSTG — https://owasp.org/www-project-web-security-testing-guide/
+- ZAP Baseline — https://www.zaproxy.org/docs/docker/baseline-scan/

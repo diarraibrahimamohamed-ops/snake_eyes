@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import CollectionTarget, CollectionSource, CollectionRun, IntelligenceObservation, IntelligenceRelation, ThreatForecast
+from .models import CollectionTarget, CollectionSource, CollectionRun, IntelligenceObservation, IntelligenceRelation, IntelligenceEvidence, ThreatForecast
 
 class CollectionTargetSerializer(serializers.ModelSerializer):
     class Meta:
@@ -55,3 +55,13 @@ class ThreatForecastSerializer(serializers.ModelSerializer):
         model = ThreatForecast
         fields = "__all__"
         read_only_fields = [f.name for f in ThreatForecast._meta.fields]
+
+class IntelligenceEvidenceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = IntelligenceEvidence
+        fields = [
+            "id", "organization", "run", "observation", "source", "sequence",
+            "schema_version", "captured_at", "source_label", "source_url",
+            "payload", "payload_sha256", "previous_hash", "record_hash", "created_at",
+        ]
+        read_only_fields = fields
