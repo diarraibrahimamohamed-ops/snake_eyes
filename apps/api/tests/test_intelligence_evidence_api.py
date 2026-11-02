@@ -101,3 +101,20 @@ def test_evidence_api_lists_tenant_records_and_verifies_scoped_run(api_client, o
         f"/api/v1/collection-runs/{foreign_run.id}/verify-evidence/"
     )
     assert forbidden_verification.status_code == 404
+
+
+@pytest.mark.django_db
+def test_viewer_cannot_read_or_verify_evidence(api_client, admin_user, org):
+    run = _create_evidence_run(org, "viewer")
+    admin_user.role = "viewer"
+    admin_user.save(update_fields=["role"])
+
+    evidence_response = api_client.get(
+        "/api/v1/intelligence-evidence/", {"run": str(run.id)}
+    )
+    assert evidence_response.status_code == 403
+
+    verification_response = api_client.get(
+        f"/api/v1/collection-runs/{run.id}/verify-evidence/"
+    )
+    assert verification_response.status_code == 403
