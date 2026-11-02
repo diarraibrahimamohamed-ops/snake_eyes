@@ -1,6 +1,7 @@
 """AfricaWatch — API Tests"""
 import pytest
 from django.utils import timezone
+from africanwatch.apps.threat_intel.models import IOC
 
 
 class TestAuth:
@@ -133,6 +134,37 @@ class TestDashboardAPI:
     def test_threat_map(self, api_client):
         resp = api_client.get("/api/v1/dashboard/threat-map/")
         assert resp.status_code == 200
+        assert "african_threats" in resp.data
+        assert "total_countries" in resp.data
+        assert "total_iocs" in resp.data
+
+    def test_threat_map_aggregates_by_country_without_returning_point_coordinates(self, api_client):
+        now = timezone.now()
+        common = {
+            "ioc_type": IOC.IOCType.IP,
+            "severity": IOC.Severity.HIGH,
+            "confidence": 80,
+            "tlp_level": IOC.TLPLevel.GREEN,
+            "is_african_threat": True,
+            "country_code": "ML",
+            "country_name": "Mali",
+            "first_seen": now,
+            "last_seen": now,
+        }
+        IOC.objects.create(value="198.51.100.101", latitude=12.6, longitude=-8.0, **common)
+        IOC.objects.create(value="198.51.100.102", latitude=13.1, longitude=-9.2, **common)
+
+        response = api_client.get("/api/v1/dashboard/threat-map/")
+
+        assert response.status_code == 200
+        assert response.data["total_countries"] == 1
+        assert response.data["total_iocs"] == 2
+        country = response.data["african_threats"][0]
+        assert country["country_code"] == "ML"
+        assert country["total"] == 2
+        assert country["high"] == 2
+        assert "latitude" not in country
+        assert "longitude" not in country
 
 
 class TestHealthCheck:
